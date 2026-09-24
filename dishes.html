@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danh sách món ăn – Tổ Ấm Gia Đình</title>
+  <meta name="description" content="Quản lý danh sách các món ăn gia đình, phân loại món chính, rau, canh và bật/tắt trong thực đơn tự động.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar (Noibo style) -->
+  <header class="topbar">
+    <div class="topbar-container">
+      <a href="index.html" class="brand-link" id="brand-logo-link">
+        <div class="brand-icon-box">
+          <i data-lucide="utensils"></i>
+        </div>
+        <div>
+          <span>Tổ Ấm Hải Anh</span>
+          <span class="brand-text-sub">Thực đơn & Chăm sóc nhà</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav aria-label="Menu chính">
+        <ul class="nav-menu">
+          <li>
+            <a href="index.html" class="nav-link" id="nav-menu-link">
+              <i data-lucide="calendar"></i>
+              <span>Thực đơn</span>
+            </a>
+          </li>
+          <li>
+            <a href="dishes.html" class="nav-link active" id="nav-dishes-link">
+              <i data-lucide="chef-hat"></i>
+              <span>Danh sách món</span>
+            </a>
+          </li>
+          <li>
+            <a href="tips.html" class="nav-link" id="nav-tips-link">
+              <i data-lucide="sparkles"></i>
+              <span>Mẹo nhà</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Mobile Nav Toggle -->
+      <button type="button" class="mobile-nav-toggle" aria-label="Mở menu di động">
+        <i data-lucide="menu"></i>
+      </button>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-menu-drawer">
+      <a href="index.html" class="nav-link">
+        <i data-lucide="calendar"></i>
+        <span>Thực đơn tuần</span>
+      </a>
+      <a href="dishes.html" class="nav-link active">
+        <i data-lucide="chef-hat"></i>
+        <span>Danh sách món ăn</span>
+      </a>
+      <a href="tips.html" class="nav-link">
+        <i data-lucide="sparkles"></i>
+        <span>Mẹo chăm sóc nhà</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Danh sách món ăn</h1>
+        <p class="page-subtitle">Quản lý kho món ăn của gia đình, phân loại và bật/tắt để đưa vào thuật toán thực đơn tự động.</p>
+      </div>
+
+      <div class="page-actions">
+        <button type="button" class="btn btn-primary" id="btn-open-add-dish">
+          <i data-lucide="plus"></i>
+          <span>Thêm món mới</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Summary Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #EEF2FF; color: var(--primary);">
+          <i data-lucide="utensils"></i>
+        </div>
+        <div>
+          <div class="stat-num" id="stat-total-dishes">0</div>
+          <div class="stat-label">Tổng số món</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: var(--category-main-bg); color: var(--category-main);">
+          <i data-lucide="flame"></i>
+        </div>
+        <div>
+          <div class="stat-num" id="stat-main-dishes">0</div>
+          <div class="stat-label">Món chính</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: var(--category-veg-bg); color: var(--category-veg);">
+          <i data-lucide="salad"></i>
+        </div>
+        <div>
+          <div class="stat-num" id="stat-veg-dishes">0</div>
+          <div class="stat-label">Món rau</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon" style="background: var(--category-soup-bg); color: var(--category-soup);">
+          <i data-lucide="soup"></i>
+        </div>
+        <div>
+          <div class="stat-num" id="stat-soup-dishes">0</div>
+          <div class="stat-label">Món canh</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="filter-bar">
+      <div class="search-input-wrapper">
+        <i data-lucide="search"></i>
+        <input type="text" class="search-input" id="dish-search-input" placeholder="Tìm kiếm món ăn theo tên hoặc ghi chú...">
+      </div>
+
+      <div class="filter-pills" id="category-filter-container">
+        <button type="button" class="filter-pill active" data-category="all">Tất cả</button>
+        <button type="button" class="filter-pill" data-category="main">Món chính</button>
+        <button type="button" class="filter-pill" data-category="vegetable">Rau</button>
+        <button type="button" class="filter-pill" data-category="soup">Canh</button>
+        <button type="button" class="filter-pill" data-category="side">Món phụ</button>
+      </div>
+    </div>
+
+    <!-- Dishes Data Table Card -->
+    <div class="dishes-table-card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 45%;">Tên món & Ghi chú</th>
+            <th style="width: 20%;">Phân loại</th>
+            <th style="width: 20%;">Thực đơn tự động</th>
+            <th style="width: 15%; text-align: right;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="dishes-table-body">
+          <!-- Rendered via js/dishes.js -->
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Add / Edit Dish Modal -->
+  <div class="modal-overlay" id="dish-modal" role="dialog" aria-modal="true" aria-labelledby="dish-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="dish-modal-title">Thêm món ăn mới</h3>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-dish-modal" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="dish-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="dish-name-input">
+              Tên món ăn <span class="required">*</span>
+            </label>
+            <input type="text" class="form-input" id="dish-name-input" placeholder="Ví dụ: Cá kho tộ, Canh chua cá lóc..." required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="dish-category-select">
+              Phân loại món <span class="required">*</span>
+            </label>
+            <select class="form-select" id="dish-category-select" required>
+              <option value="main">Món chính</option>
+              <option value="vegetable">Rau</option>
+              <option value="soup">Canh</option>
+              <option value="side">Món phụ</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="dish-note-input">Ghi chú hoặc mẹo nấu (tùy chọn)</label>
+            <textarea class="form-textarea" id="dish-note-input" rows="2" placeholder="Ví dụ: Kho nhiều riềng, ít tiêu; hoặc mua thịt ba chỉ giòn bì..."></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0; padding-top: 8px;">
+            <label class="switch-label">
+              <input type="checkbox" class="switch-input" id="dish-enabled-check" checked>
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+              <span>Bật sử dụng trong gợi ý thực đơn tự động</span>
+            </label>
+            <div class="form-hint" style="margin-left: 50px;">Nếu tắt, món ăn này sẽ không được máy tính tự động chọn khi lên thực đơn tuần.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btn-cancel-dish-modal">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-dish">
+            <i data-lucide="check"></i>
+            <span>Lưu món ăn</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+  <!-- App Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/dishes.js"></script>
+</body>
+</html>

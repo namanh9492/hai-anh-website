@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mẹo chăm sóc nhà – Tổ Ấm Gia Đình</title>
+  <meta name="description" content="Sổ tay các mẹo dọn dẹp, tẩy rửa, bảo quản đồ dùng gia đình cho bếp, nhà tắm, phòng ngủ và thiết bị.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar (Noibo style) -->
+  <header class="topbar">
+    <div class="topbar-container">
+      <a href="index.html" class="brand-link" id="brand-logo-link">
+        <div class="brand-icon-box">
+          <i data-lucide="utensils"></i>
+        </div>
+        <div>
+          <span>Tổ Ấm Hải Anh</span>
+          <span class="brand-text-sub">Thực đơn & Chăm sóc nhà</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav aria-label="Menu chính">
+        <ul class="nav-menu">
+          <li>
+            <a href="index.html" class="nav-link" id="nav-menu-link">
+              <i data-lucide="calendar"></i>
+              <span>Thực đơn</span>
+            </a>
+          </li>
+          <li>
+            <a href="dishes.html" class="nav-link" id="nav-dishes-link">
+              <i data-lucide="chef-hat"></i>
+              <span>Danh sách món</span>
+            </a>
+          </li>
+          <li>
+            <a href="tips.html" class="nav-link active" id="nav-tips-link">
+              <i data-lucide="sparkles"></i>
+              <span>Mẹo nhà</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Mobile Nav Toggle -->
+      <button type="button" class="mobile-nav-toggle" aria-label="Mở menu di động">
+        <i data-lucide="menu"></i>
+      </button>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-menu-drawer">
+      <a href="index.html" class="nav-link">
+        <i data-lucide="calendar"></i>
+        <span>Thực đơn tuần</span>
+      </a>
+      <a href="dishes.html" class="nav-link">
+        <i data-lucide="chef-hat"></i>
+        <span>Danh sách món ăn</span>
+      </a>
+      <a href="tips.html" class="nav-link active">
+        <i data-lucide="sparkles"></i>
+        <span>Mẹo chăm sóc nhà</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Mẹo chăm sóc & Dọn dẹp nhà</h1>
+        <p class="page-subtitle">Sổ tay lưu trữ các mẹo dọn dẹp, tẩy cặn, giặt giũ và bảo quản đồ dùng gia đình tiện lợi.</p>
+      </div>
+
+      <div class="page-actions">
+        <button type="button" class="btn btn-primary" id="btn-open-add-tip">
+          <i data-lucide="plus"></i>
+          <span>Thêm mẹo mới</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="filter-bar">
+      <div class="search-input-wrapper">
+        <i data-lucide="search"></i>
+        <input type="text" class="search-input" id="tip-search-input" placeholder="Tìm kiếm mẹo theo tên, đồ chuẩn bị hoặc nội dung...">
+      </div>
+
+      <div class="filter-pills" id="tip-category-filter">
+        <button type="button" class="filter-pill active" data-category="all">Tất cả</button>
+        <button type="button" class="filter-pill" data-category="bep">Bếp</button>
+        <button type="button" class="filter-pill" data-category="wc">WC / Tắm</button>
+        <button type="button" class="filter-pill" data-category="phong-ngu">Phòng ngủ</button>
+        <button type="button" class="filter-pill" data-category="phong-khach">Phòng khách</button>
+        <button type="button" class="filter-pill" data-category="quan-ao">Quần áo</button>
+        <button type="button" class="filter-pill" data-category="thiet-bi">Thiết bị</button>
+        <button type="button" class="filter-pill" data-category="khac">Khác</button>
+      </div>
+    </div>
+
+    <!-- Tips Grid -->
+    <div class="tips-grid" id="tips-grid">
+      <!-- Rendered via js/tips.js -->
+    </div>
+  </main>
+
+  <!-- Tip Detail Modal (Viewer) -->
+  <div class="modal-overlay" id="tip-detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-tip-title">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <div>
+          <span class="badge" id="detail-tip-badge" style="background: var(--primary-soft); color: var(--primary); margin-bottom: 4px;">Khu vực</span>
+          <h3 class="modal-title" id="detail-tip-title">Chi tiết mẹo</h3>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-tip-detail" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+        
+        <!-- Preparation Items -->
+        <div id="detail-prep-section">
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--foreground); display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="check-square" style="color: var(--primary); width: 16px; height: 16px;"></i>
+            <span>Đồ cần chuẩn bị:</span>
+          </div>
+          <ul class="tip-detail-prep-list" id="detail-prep-list"></ul>
+        </div>
+
+        <!-- Instructions Content -->
+        <div>
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--foreground); display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+            <i data-lucide="list-ordered" style="color: var(--primary); width: 16px; height: 16px;"></i>
+            <span>Hướng dẫn thực hiện:</span>
+          </div>
+          <div class="tip-detail-content" id="detail-tip-content"></div>
+        </div>
+
+        <!-- Reference Links -->
+        <div id="detail-links-section">
+          <div style="font-size: 0.85rem; font-weight: 700; color: var(--foreground); display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+            <i data-lucide="link" style="color: var(--primary); width: 16px; height: 16px;"></i>
+            <span>Liên kết tham khảo:</span>
+          </div>
+          <div class="tip-detail-links" id="detail-links-list"></div>
+        </div>
+
+        <!-- Note / Warning -->
+        <div id="detail-note-section" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-md); padding: 12px 14px;">
+          <div style="font-size: 0.82rem; font-weight: 700; color: #B45309; display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+            <i data-lucide="alert-circle" style="width: 15px; height: 15px;"></i>
+            <span>Lưu ý quan trọng:</span>
+          </div>
+          <p id="detail-tip-note" style="font-size: 0.86rem; color: #92400E; margin: 0; line-height: 1.5;"></p>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-outline btn-sm" id="btn-detail-edit">
+            <i data-lucide="pencil"></i>
+            <span>Sửa mẹo</span>
+          </button>
+          <button type="button" class="btn btn-danger-soft btn-sm" id="btn-detail-delete">
+            <i data-lucide="trash-2"></i>
+            <span>Xóa mẹo</span>
+          </button>
+        </div>
+        <button type="button" class="btn btn-secondary" id="btn-close-detail-footer">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add / Edit Tip Modal (Form) -->
+  <div class="modal-overlay" id="tip-form-modal" role="dialog" aria-modal="true" aria-labelledby="tip-form-modal-title">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="tip-form-modal-title">Thêm mẹo mới</h3>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-tip-form" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="tip-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="tip-title-input">
+              Tiêu đề mẹo <span class="required">*</span>
+            </label>
+            <input type="text" class="form-input" id="tip-title-input" placeholder="Ví dụ: Vệ sinh kính bếp từ..." required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tip-category-select">
+              Khu vực / Loại mẹo <span class="required">*</span>
+            </label>
+            <select class="form-select" id="tip-category-select" required>
+              <option value="bep">Bếp</option>
+              <option value="wc">WC / Phòng tắm</option>
+              <option value="phong-ngu">Phòng ngủ</option>
+              <option value="phong-khach">Phòng khách</option>
+              <option value="quan-ao">Quần áo</option>
+              <option value="thiet-bi">Thiết bị</option>
+              <option value="khac">Khác</option>
+            </select>
+          </div>
+
+          <!-- Preparation items dynamic inputs -->
+          <div class="form-group">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <label class="form-label" style="margin-bottom: 0;">Đồ cần chuẩn bị</label>
+              <button type="button" class="btn btn-soft btn-xs" id="btn-add-prep-item">
+                <i data-lucide="plus"></i> Thêm đồ
+              </button>
+            </div>
+            <div id="prep-items-container">
+              <!-- Dynamic rows via js/tips.js -->
+            </div>
+            <div class="form-hint">Nhập từng dụng cụ, dung dịch hoặc vật liệu cần dùng.</div>
+          </div>
+
+          <!-- Instructions -->
+          <div class="form-group">
+            <label class="form-label" for="tip-content-input">Hướng dẫn thực hiện</label>
+            <textarea class="form-textarea" id="tip-content-input" rows="5" placeholder="1. Bước một: ...&#10;2. Bước hai: ...&#10;3. Bước ba: ..."></textarea>
+          </div>
+
+          <!-- Dynamic Reference Links -->
+          <div class="form-group">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <label class="form-label" style="margin-bottom: 0;">Link tham khảo (YouTube, bài viết...)</label>
+              <button type="button" class="btn btn-soft btn-xs" id="btn-add-link-item">
+                <i data-lucide="plus"></i> Thêm link
+              </button>
+            </div>
+            <div id="links-container">
+              <!-- Dynamic rows via js/tips.js -->
+            </div>
+            <div class="form-hint">Nhập tên hiển thị và đường link tham khảo bên ngoài.</div>
+          </div>
+
+          <!-- Note -->
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label" for="tip-note-input">Lưu ý hoặc cảnh báo an toàn</label>
+            <textarea class="form-textarea" id="tip-note-input" rows="2" placeholder="Ví dụ: Đeo găng tay khi tẩy rửa; Không dùng cọ sắt làm xước bề mặt..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btn-cancel-tip-form">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-tip">
+            <i data-lucide="check"></i>
+            <span>Lưu mẹo</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+  <!-- App Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/tips.js"></script>
+</body>
+</html>

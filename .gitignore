@@ -1,0 +1,12 @@
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
+
+# Dependencies (if any)
+node_modules/
+package-lock.json

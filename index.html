@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thực đơn tuần – Tổ Ấm Gia Đình</title>
+  <meta name="description" content="Quản lý thực đơn gia đình hàng tuần, tự động gợi ý món ăn dinh dưỡng và ngon miệng mỗi ngày.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar (Noibo style) -->
+  <header class="topbar">
+    <div class="topbar-container">
+      <a href="index.html" class="brand-link" id="brand-logo-link">
+        <div class="brand-icon-box">
+          <i data-lucide="utensils"></i>
+        </div>
+        <div>
+          <span>Tổ Ấm Hải Anh</span>
+          <span class="brand-text-sub">Thực đơn & Chăm sóc nhà</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav aria-label="Menu chính">
+        <ul class="nav-menu">
+          <li>
+            <a href="index.html" class="nav-link active" id="nav-menu-link">
+              <i data-lucide="calendar"></i>
+              <span>Thực đơn</span>
+            </a>
+          </li>
+          <li>
+            <a href="dishes.html" class="nav-link" id="nav-dishes-link">
+              <i data-lucide="chef-hat"></i>
+              <span>Danh sách món</span>
+            </a>
+          </li>
+          <li>
+            <a href="tips.html" class="nav-link" id="nav-tips-link">
+              <i data-lucide="sparkles"></i>
+              <span>Mẹo nhà</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Mobile Nav Toggle -->
+      <button type="button" class="mobile-nav-toggle" aria-label="Mở menu di động">
+        <i data-lucide="menu"></i>
+      </button>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-menu-drawer">
+      <a href="index.html" class="nav-link active">
+        <i data-lucide="calendar"></i>
+        <span>Thực đơn tuần</span>
+      </a>
+      <a href="dishes.html" class="nav-link">
+        <i data-lucide="chef-hat"></i>
+        <span>Danh sách món ăn</span>
+      </a>
+      <a href="tips.html" class="nav-link">
+        <i data-lucide="sparkles"></i>
+        <span>Mẹo chăm sóc nhà</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+    
+    <!-- Hero Banner: Hôm nay ăn gì? -->
+    <section id="today-hero-container" aria-label="Bữa ăn hôm nay"></section>
+
+    <!-- Page Header & Week Navigator -->
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Thực đơn theo tuần</h1>
+        <p class="page-subtitle">Sắp xếp bữa cơm ấm cúng, hạn chế trùng món và tự động cân đối món chính, rau, canh.</p>
+      </div>
+
+      <div class="page-actions">
+        <button type="button" class="btn btn-primary" id="btn-generate-menu">
+          <i data-lucide="wand-2"></i>
+          <span>Lên thực đơn tuần</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Week Navigator Bar -->
+    <div class="week-navigator">
+      <div class="week-range-display">
+        <i data-lucide="calendar-range" style="color: var(--primary); width: 20px; height: 20px;"></i>
+        <span id="week-range-text">Đang tải...</span>
+        <span id="week-badge" class="week-badge">Tuần này</span>
+      </div>
+
+      <div class="week-nav-controls">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-prev-week" title="Tuần trước">
+          <i data-lucide="chevron-left"></i>
+          <span>Tuần trước</span>
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-this-week" title="Quay lại tuần này">
+          <span>Tuần này</span>
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-next-week" title="Tuần sau">
+          <span>Tuần sau</span>
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 7-Day Menu Grid -->
+    <div class="week-grid" id="week-grid">
+      <!-- Generated via js/menu-page.js -->
+    </div>
+  </main>
+
+  <!-- Modal Sửa Món Thủ Công / Khóa Món -->
+  <div class="modal-overlay" id="manual-dish-modal" role="dialog" aria-modal="true" aria-labelledby="manual-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="manual-modal-title">Chọn món thủ công</h3>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-manual" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="manual-dish-form">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="manual-dish-select">Chọn món có sẵn</label>
+            <select class="form-select" id="manual-dish-select">
+              <option value="">-- Đang tải danh sách --</option>
+            </select>
+            <div class="form-hint">Món chọn từ danh sách sẽ tự động giữ nguyên và không bị ghi đè khi đổi ngẫu nhiên.</div>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 10px; margin: 16px 0;">
+            <div style="flex: 1; height: 1px; background: var(--border);"></div>
+            <span style="font-size: 0.78rem; font-weight: 600; color: var(--muted-soft); text-transform: uppercase;">hoặc tự nhập</span>
+            <div style="flex: 1; height: 1px; background: var(--border);"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="manual-dish-custom">Nhập tên món ăn riêng</label>
+            <input type="text" class="form-input" id="manual-dish-custom" placeholder="Ví dụ: Bún chả Hàng Mành, Phở cuốn...">
+            <div class="form-hint">Nhập tên món nếu bạn muốn ăn món đặc biệt ngoài danh sách thông thường.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btn-cancel-manual">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-manual">
+            <i data-lucide="check"></i>
+            <span>Lưu & Khóa món</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+  <!-- App Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/menu-generator.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/menu-page.js"></script>
+</body>
+</html>
