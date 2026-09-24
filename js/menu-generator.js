@@ -215,12 +215,25 @@
      * @param {Array} allDishes 
      * @param {Object|null} existingMenu
      * @param {Object|null} prevWeekMenu
+     * @param {Array|null} allMembers
      * @returns {Object} Complete week menu object
      */
-    generateWeeklyMenu(mondayDate, allDishes, existingMenu = null, prevWeekMenu = null) {
+    generateWeeklyMenu(mondayDate, allDishes, existingMenu = null, prevWeekMenu = null, allMembers = null) {
       const monday = this.getMonday(mondayDate);
       const weekId = this.getWeekId(monday);
       const weekDates = this.getWeekDates(monday);
+
+      const DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+      // Fetch or use provided members list
+      let members = allMembers;
+      if (!Array.isArray(members)) {
+        if (typeof window !== 'undefined' && window.StorageManager && typeof window.StorageManager.getMembers === 'function') {
+          members = window.StorageManager.getMembers();
+        } else {
+          members = [];
+        }
+      }
 
       // Track dishes used in previous week
       const usedInPrevWeek = new Set();
@@ -266,11 +279,43 @@
         const currentDate = weekDates[i];
         const dateISO = this.formatDateISO(currentDate);
         const dayLabel = DAY_LABELS[i];
+        const dayKey = DAY_KEYS[i];
         const existingDay = preservedDays[i];
         const isEatenDay = existingDay ? !!existingDay.isEaten : false;
 
-        // CRITICAL: Eaten days are historical/finalized. Preserve entire day!
+        // Compute default attendance snapshot for this day from current member schedules
+        const defaultDayAttendance = {
+          breakfast: {
+            memberIds: members.filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey].breakfast).map(m => m.id),
+            manualOverride: false
+          },
+          lunch: {
+            memberIds: members.filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey].lunch).map(m => m.id),
+            manualOverride: false
+          },
+          dinner: {
+            memberIds: members.filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey].dinner).map(m => m.id),
+            manualOverride: false
+          }
+        };
+
+        // CRITICAL: Eaten days are historical/finalized. Preserve entire day and attendance!
         if (isEatenDay) {
+          const eatenAttendance = (existingDay && existingDay.attendance) ? {
+            breakfast: {
+              memberIds: Array.isArray(existingDay.attendance.breakfast?.memberIds) ? [...existingDay.attendance.breakfast.memberIds] : [...defaultDayAttendance.breakfast.memberIds],
+              manualOverride: !!existingDay.attendance.breakfast?.manualOverride
+            },
+            lunch: {
+              memberIds: Array.isArray(existingDay.attendance.lunch?.memberIds) ? [...existingDay.attendance.lunch.memberIds] : [...defaultDayAttendance.lunch.memberIds],
+              manualOverride: !!existingDay.attendance.lunch?.manualOverride
+            },
+            dinner: {
+              memberIds: Array.isArray(existingDay.attendance.dinner?.memberIds) ? [...existingDay.attendance.dinner.memberIds] : [...defaultDayAttendance.dinner.memberIds],
+              manualOverride: !!existingDay.attendance.dinner?.manualOverride
+            }
+          } : defaultDayAttendance;
+
           days.push({
             date: dateISO,
             dayIndex: i,
@@ -279,7 +324,8 @@
             main: existingDay.main,
             vegetable: existingDay.vegetable,
             soup: existingDay.soup,
-            side: existingDay.side
+            side: existingDay.side,
+            attendance: eatenAttendance
           });
           prevMainId = existingDay.main ? existingDay.main.id : null;
           prevVegId = existingDay.vegetable ? existingDay.vegetable.id : null;
@@ -353,6 +399,19 @@
         // 4. Side dish (optional: keep if existing, else null)
         const sideDish = existingDay && existingDay.side ? existingDay.side : null;
 
+        // Attendance snapshot: preserve meals that were manually overridden in existing menu
+        const dayAttendance = {
+          breakfast: (existingDay && existingDay.attendance?.breakfast?.manualOverride)
+            ? { memberIds: [...existingDay.attendance.breakfast.memberIds], manualOverride: true }
+            : defaultDayAttendance.breakfast,
+          lunch: (existingDay && existingDay.attendance?.lunch?.manualOverride)
+            ? { memberIds: [...existingDay.attendance.lunch.memberIds], manualOverride: true }
+            : defaultDayAttendance.lunch,
+          dinner: (existingDay && existingDay.attendance?.dinner?.manualOverride)
+            ? { memberIds: [...existingDay.attendance.dinner.memberIds], manualOverride: true }
+            : defaultDayAttendance.dinner
+        };
+
         days.push({
           date: dateISO,
           dayIndex: i,
@@ -361,7 +420,8 @@
           main: mainDish,
           vegetable: vegDish,
           soup: soupDish,
-          side: sideDish
+          side: sideDish,
+          attendance: dayAttendance
         });
       }
 
@@ -472,6 +532,77 @@
       weekMenu.days[dayIndex].isEaten = !weekMenu.days[dayIndex].isEaten;
       weekMenu.updatedAt = Date.now();
       return weekMenu;
+    }
+
+    /**
+     * Build default attendance for a specific day index from members
+     * @param {number} dayIndex (0 - 6)
+     * @param {Array} members
+     * @returns {Object} attendance object
+     */
+    buildDefaultDayAttendance(dayIndex, members = []) {
+      const DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const dayKey = DAY_KEYS[dayIndex] || 'monday';
+      const safeMembers = Array.isArray(members) ? members : [];
+
+      return {
+        breakfast: {
+          memberIds: safeMembers.filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey].breakfast).map(m => m.id),
+          manualOverride: false
+        },
+        lunch: {
+          memberIds: safeMembers.filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey].lunch).map(m => m.id),
+          manualOverride: false
+        },
+        dinner: {
+          memberIds: safeMembers.filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey].dinner).map(m => m.id),
+          manualOverride: false
+        }
+      };
+    }
+
+    /**
+     * Update attendance for a single meal slot in a day
+     * @param {Object} weekMenu
+     * @param {number} dayIndex (0 - 6)
+     * @param {string} mealKey 'breakfast' | 'lunch' | 'dinner'
+     * @param {Array<string>} memberIds
+     * @param {boolean} manualOverride
+     * @returns {Object} Updated weekMenu
+     */
+    updateMealAttendance(weekMenu, dayIndex, mealKey, memberIds, manualOverride = true) {
+      if (!weekMenu || !weekMenu.days || !weekMenu.days[dayIndex]) return weekMenu;
+      const day = weekMenu.days[dayIndex];
+      if (!day.attendance) {
+        day.attendance = this.buildDefaultDayAttendance(dayIndex, []);
+      }
+      day.attendance[mealKey] = {
+        memberIds: Array.isArray(memberIds) ? [...memberIds] : [],
+        manualOverride: typeof manualOverride === 'boolean' ? manualOverride : true
+      };
+      weekMenu.updatedAt = Date.now();
+      return weekMenu;
+    }
+
+    /**
+     * Reset a meal slot attendance back to current member schedule template
+     * @param {Object} weekMenu
+     * @param {number} dayIndex (0 - 6)
+     * @param {string} mealKey 'breakfast' | 'lunch' | 'dinner'
+     * @param {Array} members
+     * @returns {Object} Updated weekMenu
+     */
+    resetMealAttendanceToDefault(weekMenu, dayIndex, mealKey, members = []) {
+      if (!weekMenu || !weekMenu.days || !weekMenu.days[dayIndex]) return weekMenu;
+      const DAY_KEYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const dayKey = DAY_KEYS[dayIndex] || 'monday';
+      const safeMembers = Array.isArray(members) ? members : [];
+
+      const defaultMemberIds = safeMembers
+        .filter(m => m && m.mealSchedule && m.mealSchedule[dayKey] && m.mealSchedule[dayKey][mealKey])
+        .map(m => m.id);
+
+      return this.updateMealAttendance(weekMenu, dayIndex, mealKey, defaultMemberIds, false);
     }
   }
 

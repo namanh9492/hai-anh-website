@@ -9,6 +9,7 @@
     DISHES: 'familyHome:v1:dishes',
     MENUS: 'familyHome:v1:menus',
     TIPS: 'familyHome:v1:tips',
+    MEMBERS: 'familyHome:v1:members',
     META: 'familyHome:v1:meta'
   };
 
@@ -145,6 +146,11 @@
 
       if (localStorage.getItem(STORAGE_KEYS.MENUS) === null) {
         this._safeSet(STORAGE_KEYS.MENUS, {});
+      }
+
+      // Initialize empty members array if key has never existed (strictly null). Never auto-seed fake persons.
+      if (localStorage.getItem(STORAGE_KEYS.MEMBERS) === null) {
+        this._safeSet(STORAGE_KEYS.MEMBERS, []);
       }
 
       // Mark initialized metadata once. Do not reset initializedAt on subsequent loads.
@@ -310,8 +316,44 @@
     }
 
     // --- Menus CRUD ---
+    _normalizeMenu(menu) {
+      if (!menu || typeof menu !== 'object') return null;
+      if (!Array.isArray(menu.days)) return menu;
+
+      const normalizedDays = menu.days.map(day => {
+        if (!day || typeof day !== 'object') return day;
+
+        const attendance = day.attendance || {};
+        const normalizedAttendance = {};
+
+        ['breakfast', 'lunch', 'dinner'].forEach(meal => {
+          const slot = attendance[meal];
+          normalizedAttendance[meal] = {
+            memberIds: Array.isArray(slot?.memberIds) ? slot.memberIds.filter(Boolean) : [],
+            manualOverride: typeof slot?.manualOverride === 'boolean' ? slot.manualOverride : false
+          };
+        });
+
+        return {
+          ...day,
+          attendance: normalizedAttendance
+        };
+      });
+
+      return {
+        ...menu,
+        days: normalizedDays
+      };
+    }
+
     getMenus() {
-      return this._safeGet(STORAGE_KEYS.MENUS, {});
+      const raw = this._safeGet(STORAGE_KEYS.MENUS, {});
+      if (!raw || typeof raw !== 'object') return {};
+      const normalized = {};
+      Object.keys(raw).forEach(weekId => {
+        normalized[weekId] = this._normalizeMenu(raw[weekId]);
+      });
+      return normalized;
     }
 
     saveMenus(menus) {
@@ -325,12 +367,138 @@
 
     saveMenuForWeek(weekId, weekMenu) {
       const menus = this.getMenus();
+      const normalized = this._normalizeMenu(weekMenu) || weekMenu;
       menus[weekId] = {
-        ...weekMenu,
+        ...normalized,
         updatedAt: Date.now()
       };
       this.saveMenus(menus);
       return menus[weekId];
+    }
+
+    // --- Members CRUD ---
+    getMembers() {
+      const raw = this._safeGet(STORAGE_KEYS.MEMBERS, []);
+      if (!Array.isArray(raw)) return [];
+
+      const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+      return raw.map(m => {
+        if (!m || typeof m !== 'object') return null;
+
+        const id = m.id || ('mem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5));
+        const name = typeof m.name === 'string' ? m.name.trim() : 'Thành viên';
+        const birthDate = typeof m.birthDate === 'string' ? m.birthDate.trim() : '';
+        const portionSize = ['small', 'medium', 'standard', 'large'].includes(m.portionSize) ? m.portionSize : 'standard';
+        const dietaryRules = Array.isArray(m.dietaryRules) ? m.dietaryRules.filter(Boolean).map(r => String(r).trim()).filter(Boolean) : [];
+        const healthNotes = typeof m.healthNotes === 'string' ? m.healthNotes.trim() : '';
+
+        // Normalize mealSchedule (Monday -> Sunday with breakfast, lunch, dinner)
+        const mealSchedule = {};
+        DAYS.forEach(day => {
+          const daySched = m.mealSchedule?.[day];
+          mealSchedule[day] = {
+            breakfast: typeof daySched?.breakfast === 'boolean' ? daySched.breakfast : (day === 'saturday' || day === 'sunday'),
+            lunch: typeof daySched?.lunch === 'boolean' ? daySched.lunch : (day === 'saturday' || day === 'sunday'),
+            dinner: typeof daySched?.dinner === 'boolean' ? daySched.dinner : true
+          };
+        });
+
+        return {
+          id,
+          name,
+          birthDate,
+          portionSize,
+          dietaryRules,
+          healthNotes,
+          mealSchedule,
+          createdAt: m.createdAt || Date.now(),
+          updatedAt: m.updatedAt || Date.now()
+        };
+      }).filter(Boolean);
+    }
+
+    saveMembers(members) {
+      return this._safeSet(STORAGE_KEYS.MEMBERS, members);
+    }
+
+    addMember(memberData) {
+      const members = this.getMembers();
+      const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+      const mealSchedule = {};
+      DAYS.forEach(day => {
+        const daySched = memberData.mealSchedule?.[day];
+        mealSchedule[day] = {
+          breakfast: typeof daySched?.breakfast === 'boolean' ? daySched.breakfast : (day === 'saturday' || day === 'sunday'),
+          lunch: typeof daySched?.lunch === 'boolean' ? daySched.lunch : (day === 'saturday' || day === 'sunday'),
+          dinner: typeof daySched?.dinner === 'boolean' ? daySched.dinner : true
+        };
+      });
+
+      const newMember = {
+        id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        name: (memberData.name || '').trim(),
+        birthDate: (memberData.birthDate || '').trim(),
+        portionSize: ['small', 'medium', 'standard', 'large'].includes(memberData.portionSize) ? memberData.portionSize : 'standard',
+        dietaryRules: Array.isArray(memberData.dietaryRules) ? memberData.dietaryRules.filter(Boolean).map(r => String(r).trim()).filter(Boolean) : [],
+        healthNotes: (memberData.healthNotes || '').trim(),
+        mealSchedule,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      members.push(newMember);
+      this.saveMembers(members);
+      return newMember;
+    }
+
+    updateMember(id, updates) {
+      const members = this.getMembers();
+      const index = members.findIndex(m => m.id === id);
+      if (index === -1) return null;
+
+      const current = members[index];
+      const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+      let mealSchedule = current.mealSchedule;
+      if (updates.mealSchedule && typeof updates.mealSchedule === 'object') {
+        mealSchedule = {};
+        DAYS.forEach(day => {
+          const daySched = updates.mealSchedule[day] || current.mealSchedule[day];
+          mealSchedule[day] = {
+            breakfast: typeof daySched?.breakfast === 'boolean' ? daySched.breakfast : false,
+            lunch: typeof daySched?.lunch === 'boolean' ? daySched.lunch : false,
+            dinner: typeof daySched?.dinner === 'boolean' ? daySched.dinner : false
+          };
+        });
+      }
+
+      members[index] = {
+        ...current,
+        name: updates.name !== undefined ? updates.name.trim() : current.name,
+        birthDate: updates.birthDate !== undefined ? updates.birthDate.trim() : current.birthDate,
+        portionSize: updates.portionSize !== undefined && ['small', 'medium', 'standard', 'large'].includes(updates.portionSize) ? updates.portionSize : current.portionSize,
+        dietaryRules: updates.dietaryRules !== undefined && Array.isArray(updates.dietaryRules) ? updates.dietaryRules.filter(Boolean).map(r => String(r).trim()).filter(Boolean) : current.dietaryRules,
+        healthNotes: updates.healthNotes !== undefined ? updates.healthNotes.trim() : current.healthNotes,
+        mealSchedule,
+        updatedAt: Date.now()
+      };
+
+      this.saveMembers(members);
+      return members[index];
+    }
+
+    deleteMember(id) {
+      const members = this.getMembers();
+      const filtered = members.filter(m => m.id !== id);
+      this.saveMembers(filtered);
+      return filtered.length !== members.length;
+    }
+
+    getMemberById(id) {
+      const members = this.getMembers();
+      return members.find(m => m.id === id) || null;
     }
 
     // --- Tips CRUD ---

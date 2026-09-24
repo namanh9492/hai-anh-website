@@ -188,10 +188,94 @@
     return validateExternalUrl(urlString) ? urlString.trim() : null;
   }
 
+  // Member portion sizes mapping
+  const PORTION_SIZES = {
+    small: { label: 'Nhỏ', value: 'small', badgeClass: 'badge-portion-small' },
+    medium: { label: 'Vừa', value: 'medium', badgeClass: 'badge-portion-medium' },
+    standard: { label: 'Tiêu chuẩn', value: 'standard', badgeClass: 'badge-portion-standard' },
+    large: { label: 'Lớn', value: 'large', badgeClass: 'badge-portion-large' }
+  };
+
+  const DAYS_OF_WEEK = [
+    { key: 'monday', label: 'Thứ Hai', dayIndex: 0 },
+    { key: 'tuesday', label: 'Thứ Ba', dayIndex: 1 },
+    { key: 'wednesday', label: 'Thứ Tư', dayIndex: 2 },
+    { key: 'thursday', label: 'Thứ Năm', dayIndex: 3 },
+    { key: 'friday', label: 'Thứ Sáu', dayIndex: 4 },
+    { key: 'saturday', label: 'Thứ Bảy', dayIndex: 5 },
+    { key: 'sunday', label: 'Chủ Nhật', dayIndex: 6 }
+  ];
+
+  const MEAL_TYPES = [
+    { key: 'breakfast', label: 'Sáng' },
+    { key: 'lunch', label: 'Trưa' },
+    { key: 'dinner', label: 'Tối' }
+  ];
+
+  /**
+   * Calculate age in full years from birthDate string (YYYY-MM-DD)
+   * Accurately checks whether birthday has occurred yet in reference year.
+   * Handles leap years and invalid dates. Does NOT save calculated age to storage.
+   * 
+   * @param {string} birthDateStr 'YYYY-MM-DD'
+   * @param {Date} [referenceDate=new Date()]
+   * @returns {number|null} Age in years, or null if invalid/empty/future
+   */
+  function calculateAge(birthDateStr, referenceDate = new Date()) {
+    if (!birthDateStr || typeof birthDateStr !== 'string') return null;
+    const trimmed = birthDateStr.trim();
+    const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return null;
+
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    // Validate real calendar date (e.g. rejects Feb 31)
+    const birthDate = new Date(year, month - 1, day);
+    if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) {
+      return null;
+    }
+
+    const ref = referenceDate instanceof Date && !isNaN(referenceDate.getTime()) ? referenceDate : new Date();
+
+    let age = ref.getFullYear() - birthDate.getFullYear();
+    const mDiff = ref.getMonth() - birthDate.getMonth();
+    if (mDiff < 0 || (mDiff === 0 && ref.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    return age >= 0 ? age : null;
+  }
+
+  /**
+   * Create standard default meal schedule
+   * Mon-Fri: dinner only (breakfast=false, lunch=false, dinner=true)
+   * Sat-Sun: all meals (breakfast=true, lunch=true, dinner=true)
+   */
+  function createDefaultMealSchedule() {
+    const schedule = {};
+    DAYS_OF_WEEK.forEach(d => {
+      if (d.key === 'saturday' || d.key === 'sunday') {
+        schedule[d.key] = { breakfast: true, lunch: true, dinner: true };
+      } else {
+        schedule[d.key] = { breakfast: false, lunch: false, dinner: true };
+      }
+    });
+    return schedule;
+  }
+
   // Export
   window.AppUtils = {
     DISH_CATEGORIES,
     TIP_CATEGORIES,
+    PORTION_SIZES,
+    DAYS_OF_WEEK,
+    MEAL_TYPES,
+    calculateAge,
+    createDefaultMealSchedule,
     escapeHtml,
     showToast,
     showConfirmModal,

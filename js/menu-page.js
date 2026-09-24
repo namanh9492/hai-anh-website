@@ -84,6 +84,34 @@
         }
       });
     }
+
+    // Attendance Modal Listeners
+    const btnCloseAttendance = document.getElementById('btn-close-attendance-modal');
+    if (btnCloseAttendance) {
+      btnCloseAttendance.addEventListener('click', closeAttendanceModal);
+    }
+
+    const btnCancelAttendance = document.getElementById('btn-cancel-attendance');
+    if (btnCancelAttendance) {
+      btnCancelAttendance.addEventListener('click', closeAttendanceModal);
+    }
+
+    const btnSaveAttendance = document.getElementById('btn-save-attendance');
+    if (btnSaveAttendance) {
+      btnSaveAttendance.addEventListener('click', handleAttendanceSave);
+    }
+
+    const btnResetAttendanceDefault = document.getElementById('btn-reset-attendance-default');
+    if (btnResetAttendanceDefault) {
+      btnResetAttendanceDefault.addEventListener('click', handleAttendanceResetDefault);
+    }
+
+    const attendanceModalEl = document.getElementById('attendance-modal');
+    if (attendanceModalEl) {
+      attendanceModalEl.addEventListener('click', (e) => {
+        if (e.target === attendanceModalEl) closeAttendanceModal();
+      });
+    }
   }
 
   /**
@@ -258,6 +286,9 @@
             </div>
           ` : ''}
         </div>
+
+        <!-- Today Attendance Row -->
+        ${renderTodayHeroAttendance(todayDay)}
       </div>
     `;
 
@@ -356,6 +387,9 @@
             <!-- 4. Side Dish (Optional) -->
             ${renderSlotItem(index, 'side', 'Món phụ', day.side, true)}
           </div>
+
+          <!-- Attendance Section (Dinner) -->
+          ${renderDayAttendance(index, day)}
 
           <!-- Day Footer -->
           <div class="day-card-footer">
@@ -514,6 +548,16 @@
         window.AppUtils.showToast('Đã xóa món khỏi ngày này', 'info');
       });
     });
+
+    // Edit attendance button on each day card
+    const attendanceBtns = weekGrid.querySelectorAll('.btn-edit-attendance');
+    attendanceBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const dayIdx = parseInt(btn.dataset.day, 10);
+        const mealKey = btn.dataset.meal || 'dinner';
+        openAttendanceModal(dayIdx, mealKey);
+      });
+    });
   }
 
   /**
@@ -646,6 +690,182 @@
     renderTodayHero();
     renderWeekGrid();
     window.AppUtils.showToast(`Đã khóa món "${dishObj.name}" cho ${displayedWeekMenu.days[dayIndex].dayLabel}!`, 'success');
+  }
+
+  /**
+   * Render Today Attendance summary in Hero Card
+   */
+  function renderTodayHeroAttendance(todayDay) {
+    const allMembers = window.StorageManager.getMembers();
+    const dinnerIds = todayDay.attendance?.dinner?.memberIds || [];
+    const isOverride = !!todayDay.attendance?.dinner?.manualOverride;
+
+    let chips = '';
+    if (dinnerIds.length === 0) {
+      chips = `<span class="attendance-empty-text">Chưa có người ăn tối nay</span>`;
+    } else {
+      chips = dinnerIds.map(id => {
+        const m = allMembers.find(mem => mem.id === id);
+        const name = m ? m.name : 'Thành viên cũ';
+        return `<span class="attendance-chip"><i data-lucide="user"></i><span>${window.AppUtils.escapeHtml(name)}</span></span>`;
+      }).join('');
+    }
+
+    return `
+      <div class="today-attendance-row">
+        <div class="today-attendance-label">
+          <i data-lucide="users"></i>
+          <span>Người ăn tối nay:</span>
+          ${isOverride ? `<span class="badge-attendance-override">Chỉnh riêng</span>` : ''}
+        </div>
+        <div class="today-attendance-chips">
+          ${chips}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Render Attendance Section on Day Cards in Weekly Grid
+   */
+  function renderDayAttendance(dayIndex, day) {
+    const allMembers = window.StorageManager.getMembers();
+    const dinnerAttendance = day.attendance?.dinner || { memberIds: [], manualOverride: false };
+    const memberIds = dinnerAttendance.memberIds || [];
+    const isOverride = !!dinnerAttendance.manualOverride;
+
+    let chipsHtml = '';
+    if (memberIds.length === 0) {
+      chipsHtml = `<span class="attendance-empty-text">Chưa có người ăn</span>`;
+    } else {
+      chipsHtml = memberIds.map(id => {
+        const member = allMembers.find(m => m.id === id);
+        const name = member ? member.name : 'Thành viên cũ';
+        return `<span class="attendance-chip" title="${window.AppUtils.escapeHtml(name)}">
+          <i data-lucide="user"></i>
+          <span>${window.AppUtils.escapeHtml(name)}</span>
+        </span>`;
+      }).join('');
+    }
+
+    return `
+      <div class="day-attendance-block">
+        <div class="attendance-header">
+          <div class="attendance-label-group">
+            <span class="attendance-label">Người ăn:</span>
+            ${isOverride ? `<span class="badge-attendance-override" title="Đã chỉnh riêng cho bữa này">Chỉnh riêng</span>` : ''}
+          </div>
+          <button type="button" class="btn-edit-attendance" data-day="${dayIndex}" data-meal="dinner" title="Chỉnh người ăn cho bữa tối">
+            <i data-lucide="users"></i>
+            <span>Chỉnh</span>
+          </button>
+        </div>
+        <div class="attendance-chips-list">
+          ${chipsHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  let currentAttendanceContext = null; // { dayIndex, mealKey }
+
+  /**
+   * Open attendance editing modal
+   */
+  function openAttendanceModal(dayIndex, mealKey = 'dinner') {
+    if (!displayedWeekMenu || !displayedWeekMenu.days || !displayedWeekMenu.days[dayIndex]) return;
+    currentAttendanceContext = { dayIndex, mealKey };
+
+    const day = displayedWeekMenu.days[dayIndex];
+    const mealLabel = mealKey === 'dinner' ? 'Bữa Tối' : (mealKey === 'lunch' ? 'Bữa Trưa' : 'Bữa Sáng');
+    const modalTitle = document.getElementById('attendance-modal-title');
+    const modalSubtitle = document.getElementById('attendance-modal-subtitle');
+    const membersListEl = document.getElementById('attendance-modal-members-list');
+    const overrideNotice = document.getElementById('attendance-override-notice');
+    const attendanceModal = document.getElementById('attendance-modal');
+
+    if (modalTitle) modalTitle.textContent = `Người ăn – ${day.dayLabel} (${mealLabel})`;
+    if (modalSubtitle) modalSubtitle.textContent = `Ngày ${window.MenuGenerator.formatDateVN(new Date(day.date + 'T00:00:00'))}`;
+
+    const currentAttendance = day.attendance?.[mealKey] || { memberIds: [], manualOverride: false };
+    const currentMemberIds = Array.isArray(currentAttendance.memberIds) ? currentAttendance.memberIds : [];
+    const isOverride = !!currentAttendance.manualOverride;
+
+    if (overrideNotice) {
+      overrideNotice.style.display = isOverride ? 'flex' : 'none';
+    }
+
+    const allMembers = window.StorageManager.getMembers();
+    if (allMembers.length === 0) {
+      membersListEl.innerHTML = `
+        <div class="attendance-no-members">
+          <p style="color: var(--muted-foreground); font-size: 0.9rem; margin-bottom: 10px;">Chưa có thành viên nào trong danh sách gia đình.</p>
+          <a href="members.html" class="btn btn-outline btn-sm">
+            <i data-lucide="users"></i> Đi tới trang Thành viên
+          </a>
+        </div>
+      `;
+    } else {
+      membersListEl.innerHTML = allMembers.map(member => {
+        const isChecked = currentMemberIds.includes(member.id);
+        const age = member.birthDate ? window.AppUtils.calculateAge(member.birthDate) : null;
+        const portionLabel = window.AppUtils.PORTION_SIZES[member.portionSize]?.label || 'Tiêu chuẩn';
+        const metaText = [
+          age !== null ? `${age} tuổi` : null,
+          `Khẩu phần ${portionLabel}`
+        ].filter(Boolean).join(' · ');
+
+        return `
+          <label class="attendance-member-checkbox-item">
+            <input type="checkbox" class="attendance-member-checkbox" value="${member.id}" ${isChecked ? 'checked' : ''}>
+            <div class="attendance-member-info">
+              <span class="attendance-member-name">${window.AppUtils.escapeHtml(member.name)}</span>
+              <span class="attendance-member-meta">${window.AppUtils.escapeHtml(metaText)}</span>
+            </div>
+          </label>
+        `;
+      }).join('');
+    }
+
+    if (attendanceModal) {
+      attendanceModal.classList.add('open');
+      window.AppUtils.initIcons();
+    }
+  }
+
+  function closeAttendanceModal() {
+    const attendanceModal = document.getElementById('attendance-modal');
+    if (attendanceModal) attendanceModal.classList.remove('open');
+    currentAttendanceContext = null;
+  }
+
+  function handleAttendanceSave() {
+    if (!currentAttendanceContext || !displayedWeekMenu) return;
+    const { dayIndex, mealKey } = currentAttendanceContext;
+    const checkboxes = document.querySelectorAll('.attendance-member-checkbox:checked');
+    const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+
+    window.MenuGenerator.updateMealAttendance(displayedWeekMenu, dayIndex, mealKey, selectedIds, true);
+    window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
+
+    closeAttendanceModal();
+    renderTodayHero();
+    renderWeekGrid();
+    window.AppUtils.showToast('Đã lưu danh sách người ăn!', 'success');
+  }
+
+  function handleAttendanceResetDefault() {
+    if (!currentAttendanceContext || !displayedWeekMenu) return;
+    const { dayIndex, mealKey } = currentAttendanceContext;
+    const allMembers = window.StorageManager.getMembers();
+
+    window.MenuGenerator.resetMealAttendanceToDefault(displayedWeekMenu, dayIndex, mealKey, allMembers);
+    window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
+
+    closeAttendanceModal();
+    renderTodayHero();
+    renderWeekGrid();
+    window.AppUtils.showToast('Đã khôi phục người ăn theo lịch mặc định!', 'info');
   }
 
   // Initialize on DOM load

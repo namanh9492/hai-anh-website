@@ -41,6 +41,12 @@
             </a>
           </li>
           <li>
+            <a href="members.html" class="nav-link" id="nav-members-link">
+              <i data-lucide="users"></i>
+              <span>Thành viên</span>
+            </a>
+          </li>
+          <li>
             <a href="tips.html" class="nav-link" id="nav-tips-link">
               <i data-lucide="sparkles"></i>
               <span>Mẹo nhà</span>
@@ -64,6 +70,10 @@
       <a href="dishes.html" class="nav-link">
         <i data-lucide="chef-hat"></i>
         <span>Danh sách món ăn</span>
+      </a>
+      <a href="members.html" class="nav-link">
+        <i data-lucide="users"></i>
+        <span>Thành viên gia đình</span>
       </a>
       <a href="tips.html" class="nav-link">
         <i data-lucide="sparkles"></i>
@@ -161,6 +171,43 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Attendance Modal -->
+  <div class="modal-overlay" id="attendance-modal">
+    <div class="modal-dialog" style="max-width: 460px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="attendance-modal-title">Người ăn bữa tối</h3>
+          <p id="attendance-modal-subtitle" style="font-size: 0.82rem; color: var(--muted-foreground); margin-top: 2px;"></p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-attendance-modal" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="attendance-modal-members-list" class="attendance-checkboxes-list">
+          <!-- Member checkboxes dynamically populated -->
+        </div>
+        <div id="attendance-override-notice" class="attendance-override-notice" style="display: none;">
+          <i data-lucide="info"></i>
+          <span>Bữa này đang có người ăn chỉnh riêng so với lịch mặc định.</span>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-reset-attendance-default" title="Khôi phục danh sách theo lịch ăn mặc định của thành viên">
+          <i data-lucide="rotate-ccw"></i>
+          <span>Dùng lại lịch mặc định</span>
+        </button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-outline btn-sm" id="btn-cancel-attendance">Hủy</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btn-save-attendance">
+            <i data-lucide="check"></i>
+            <span>Lưu thay đổi</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

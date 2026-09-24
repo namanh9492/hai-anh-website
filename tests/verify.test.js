@@ -486,5 +486,201 @@ try {
 }
 assert(fallbackSafe, '2-dish pool fallback executed safely without error');
 
-console.log('\n🎉 ALL SUITES AND REGRESSION TESTS A-H PASSED PERFECTLY!\n');
+console.log('\n[Suite 10: Members & Attendance (Phase 1)]');
+
+// TEST 1: Member CRUD
+console.log('\n- Test 1: Member CRUD');
+const newMemberFixture = {
+  name: 'Bé Minh',
+  birthDate: '2021-03-12',
+  portionSize: 'small',
+  dietaryRules: ['Không cay', 'Không ăn hành'],
+  healthNotes: 'Tiền sử dị ứng tôm nhẹ'
+};
+
+const createdMember = window.StorageManager.addMember(newMemberFixture);
+assert(createdMember.id && createdMember.id.startsWith('mem_'), `Member created with unique ID (${createdMember.id})`);
+assert(createdMember.name === 'Bé Minh', 'Member name preserved');
+assert(createdMember.portionSize === 'small', 'Member portion size preserved');
+assert(createdMember.dietaryRules.length === 2, 'Member dietary rules array preserved');
+assert(createdMember.mealSchedule && createdMember.mealSchedule.monday, 'Member has default mealSchedule');
+
+const fetchedMember = window.StorageManager.getMemberById(createdMember.id);
+assert(fetchedMember !== null && fetchedMember.id === createdMember.id, 'Fetched member by ID');
+
+const updatedMember = window.StorageManager.updateMember(createdMember.id, {
+  name: 'Bé Minh Anh',
+  portionSize: 'medium'
+});
+assert(updatedMember.name === 'Bé Minh Anh', 'Member name updated successfully');
+assert(updatedMember.portionSize === 'medium', 'Member portionSize updated successfully');
+
+const deleteSuccess = window.StorageManager.deleteMember(createdMember.id);
+assert(deleteSuccess === true, 'Member deleted successfully');
+assert(window.StorageManager.getMemberById(createdMember.id) === null, 'Member no longer exists after delete');
+
+// TEST 2: Age Calculation
+console.log('\n- Test 2: Age Calculation');
+const testRefDate = new Date(2026, 8, 24); // 2026-09-24
+
+// 1. Birthday already passed this year (2021-03-12 -> 5 years old on 2026-09-24)
+const agePassed = window.AppUtils.calculateAge('2021-03-12', testRefDate);
+assert(agePassed === 5, `Age calculated correctly when birthday passed (expected 5, got ${agePassed})`);
+
+// 2. Birthday upcoming later this year (2021-11-20 -> 4 years old on 2026-09-24)
+const ageUpcoming = window.AppUtils.calculateAge('2021-11-20', testRefDate);
+assert(ageUpcoming === 4, `Age calculated correctly when birthday upcoming (expected 4, got ${ageUpcoming})`);
+
+// 3. Leap year: 2020-02-29
+const ageLeapBefore = window.AppUtils.calculateAge('2020-02-29', new Date(2021, 1, 28)); // 2021-02-28
+const ageLeapAfter = window.AppUtils.calculateAge('2020-02-29', new Date(2021, 2, 1));  // 2021-03-01
+assert(ageLeapBefore === 0, `Leap year age before March 1 is 0 (got ${ageLeapBefore})`);
+assert(ageLeapAfter === 1, `Leap year age on/after March 1 is 1 (got ${ageLeapAfter})`);
+
+// 4. Empty and invalid birthDate handling
+assert(window.AppUtils.calculateAge('') === null, 'Empty string returns null');
+assert(window.AppUtils.calculateAge(null) === null, 'Null returns null');
+assert(window.AppUtils.calculateAge('invalid-date') === null, 'Malformed date returns null');
+assert(window.AppUtils.calculateAge('2020-02-31') === null, 'Non-existent calendar date returns null');
+assert(window.AppUtils.calculateAge('2030-01-01', testRefDate) === null, 'Future birth date returns null');
+
+// TEST 3: Meal Schedule
+console.log('\n- Test 3: Meal Schedule');
+const customScheduleMember = window.StorageManager.addMember({
+  name: 'Bé Minh',
+  birthDate: '2021-03-12',
+  portionSize: 'small',
+  mealSchedule: {
+    monday: { breakfast: false, lunch: false, dinner: true },
+    tuesday: { breakfast: false, lunch: false, dinner: true },
+    wednesday: { breakfast: false, lunch: false, dinner: true },
+    thursday: { breakfast: false, lunch: false, dinner: true },
+    friday: { breakfast: false, lunch: false, dinner: true },
+    saturday: { breakfast: true, lunch: true, dinner: true },
+    sunday: { breakfast: true, lunch: true, dinner: true }
+  }
+});
+
+assert(customScheduleMember.mealSchedule.monday.breakfast === false, 'Monday breakfast is false');
+assert(customScheduleMember.mealSchedule.monday.lunch === false, 'Monday lunch is false');
+assert(customScheduleMember.mealSchedule.monday.dinner === true, 'Monday dinner is true');
+assert(customScheduleMember.mealSchedule.saturday.breakfast === true, 'Saturday breakfast is true');
+assert(customScheduleMember.mealSchedule.saturday.lunch === true, 'Saturday lunch is true');
+assert(customScheduleMember.mealSchedule.saturday.dinner === true, 'Saturday dinner is true');
+
+// TEST 4: Weekly Attendance Generation
+console.log('\n- Test 4: Weekly Attendance Generation');
+const testWeekAttendanceId = '2026-10-12';
+const generatedWeekWithAttendance = window.MenuGenerator.generateWeeklyMenu(
+  testWeekAttendanceId,
+  window.StorageManager.getDishes(),
+  null,
+  null,
+  [customScheduleMember]
+);
+
+const mondayAttendance = generatedWeekWithAttendance.days[0].attendance;
+assert(mondayAttendance.breakfast.memberIds.includes(customScheduleMember.id) === false, 'Monday breakfast does NOT contain child');
+assert(mondayAttendance.lunch.memberIds.includes(customScheduleMember.id) === false, 'Monday lunch does NOT contain child');
+assert(mondayAttendance.dinner.memberIds.includes(customScheduleMember.id) === true, 'Monday dinner contains child');
+
+const saturdayAttendance = generatedWeekWithAttendance.days[5].attendance;
+assert(saturdayAttendance.breakfast.memberIds.includes(customScheduleMember.id) === true, 'Saturday breakfast contains child');
+assert(saturdayAttendance.lunch.memberIds.includes(customScheduleMember.id) === true, 'Saturday lunch contains child');
+assert(saturdayAttendance.dinner.memberIds.includes(customScheduleMember.id) === true, 'Saturday dinner contains child');
+
+// TEST 5: Attendance Snapshot Stability
+console.log('\n- Test 5: Attendance Snapshot Stability');
+// Save menu to storage
+window.StorageManager.saveMenuForWeek(testWeekAttendanceId, generatedWeekWithAttendance);
+
+// User modifies member default schedule later
+window.StorageManager.updateMember(customScheduleMember.id, {
+  mealSchedule: {
+    monday: { breakfast: true, lunch: true, dinner: false },
+    saturday: { breakfast: false, lunch: false, dinner: false }
+  }
+});
+
+// Read existing week menu from storage
+const existingSavedWeek = window.StorageManager.getMenuForWeek(testWeekAttendanceId);
+const existingMonday = existingSavedWeek.days[0].attendance;
+assert(existingMonday.breakfast.memberIds.includes(customScheduleMember.id) === false, 'Existing week Monday breakfast unchanged (snapshot preserved)');
+assert(existingMonday.dinner.memberIds.includes(customScheduleMember.id) === true, 'Existing week Monday dinner unchanged (snapshot preserved)');
+
+// TEST 6: Manual Override of Single Meal Attendance
+console.log('\n- Test 6: Manual Override of Single Meal Attendance');
+// Child goes to birthday party on Monday night -> remove child from Monday dinner
+window.MenuGenerator.updateMealAttendance(existingSavedWeek, 0, 'dinner', [], true);
+window.StorageManager.saveMenuForWeek(testWeekAttendanceId, existingSavedWeek);
+
+const overriddenWeek = window.StorageManager.getMenuForWeek(testWeekAttendanceId);
+assert(overriddenWeek.days[0].attendance.dinner.memberIds.length === 0, 'Monday dinner memberIds updated to empty');
+assert(overriddenWeek.days[0].attendance.dinner.manualOverride === true, 'Monday dinner manualOverride is true');
+assert(overriddenWeek.days[5].attendance.dinner.memberIds.includes(customScheduleMember.id) === true, 'Saturday dinner attendance remained untouched');
+
+// Member template schedule in storage remains unaffected
+const childInStorage = window.StorageManager.getMemberById(customScheduleMember.id);
+assert(childInStorage !== null, 'Member still exists in storage');
+
+// TEST 7: Reset Override to Default
+console.log('\n- Test 7: Reset Override to Default');
+// Reset Monday dinner back to default template
+window.MenuGenerator.resetMealAttendanceToDefault(overriddenWeek, 0, 'dinner', [childInStorage]);
+window.StorageManager.saveMenuForWeek(testWeekAttendanceId, overriddenWeek);
+
+const resetWeek = window.StorageManager.getMenuForWeek(testWeekAttendanceId);
+assert(resetWeek.days[0].attendance.dinner.manualOverride === false, 'Monday dinner manualOverride reset to false');
+
+// TEST 8: Deleted Member Reference Handling
+console.log('\n- Test 8: Deleted Member Reference Handling');
+// Delete member
+window.StorageManager.deleteMember(customScheduleMember.id);
+assert(window.StorageManager.getMemberById(customScheduleMember.id) === null, 'Member successfully deleted');
+
+// Read existing historical menu - must NOT crash
+let readSafe = false;
+try {
+  const menuWithDeletedRef = window.StorageManager.getMenuForWeek(testWeekAttendanceId);
+  assert(menuWithDeletedRef !== null, 'Historical menu read successfully without crash');
+  assert(Array.isArray(menuWithDeletedRef.days), 'Historical menu days array intact');
+  assert(menuWithDeletedRef.days[5].attendance.dinner !== undefined, 'Attendance structure intact');
+  readSafe = true;
+} catch (err) {
+  assert(false, `Reading menu with deleted member crashed: ${err.message}`);
+}
+assert(readSafe, 'Historical menu with deleted member references is completely safe');
+
+// TEST 9: Legacy Menu Migration
+console.log('\n- Test 9: Legacy Menu Migration');
+const legacyMenuV1 = {
+  weekId: '2026-08-10',
+  days: [
+    {
+      date: '2026-08-10',
+      dayLabel: 'Thứ Hai',
+      isEaten: true,
+      main: { id: 'dish_m1', name: 'Thịt rang cháy cạnh', category: 'main', manual: true },
+      vegetable: { id: 'dish_v1', name: 'Rau muống', category: 'vegetable', manual: false },
+      soup: { id: 'dish_s1', name: 'Canh bí', category: 'soup', manual: false },
+      side: null
+      // NOTE: No attendance property (V1 format)
+    }
+  ]
+};
+
+window.StorageManager.saveMenuForWeek('2026-08-10', legacyMenuV1);
+const migratedMenu = window.StorageManager.getMenuForWeek('2026-08-10');
+
+assert(migratedMenu.days[0].main.id === 'dish_m1', 'Legacy dish id preserved');
+assert(migratedMenu.days[0].main.manual === true, 'Legacy manual lock flag preserved');
+assert(migratedMenu.days[0].isEaten === true, 'Legacy isEaten flag preserved');
+assert(migratedMenu.days[0].attendance !== undefined, 'Attendance object added during normalization');
+assert(Array.isArray(migratedMenu.days[0].attendance.breakfast.memberIds), 'Attendance breakfast memberIds is valid array');
+assert(Array.isArray(migratedMenu.days[0].attendance.lunch.memberIds), 'Attendance lunch memberIds is valid array');
+assert(Array.isArray(migratedMenu.days[0].attendance.dinner.memberIds), 'Attendance dinner memberIds is valid array');
+assert(migratedMenu.days[0].attendance.dinner.manualOverride === false, 'Attendance manualOverride initialized to false');
+
+console.log('\n🎉 ALL SUITES 1-10 AND REGRESSION TESTS A-H PASSED PERFECTLY!\n');
+
 

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thành viên gia đình – Tổ Ấm Hải Anh</title>
+  <meta name="description" content="Quản lý thành viên gia đình, khẩu phần và lịch ăn mặc định theo ngày và bữa.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar (Noibo style) -->
+  <header class="topbar">
+    <div class="topbar-container">
+      <a href="index.html" class="brand-link" id="brand-logo-link">
+        <div class="brand-icon-box">
+          <i data-lucide="utensils"></i>
+        </div>
+        <div>
+          <span>Tổ Ấm Hải Anh</span>
+          <span class="brand-text-sub">Thực đơn & Chăm sóc nhà</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav aria-label="Menu chính">
+        <ul class="nav-menu">
+          <li>
+            <a href="index.html" class="nav-link" id="nav-menu-link">
+              <i data-lucide="calendar"></i>
+              <span>Thực đơn</span>
+            </a>
+          </li>
+          <li>
+            <a href="dishes.html" class="nav-link" id="nav-dishes-link">
+              <i data-lucide="chef-hat"></i>
+              <span>Danh sách món</span>
+            </a>
+          </li>
+          <li>
+            <a href="members.html" class="nav-link active" id="nav-members-link">
+              <i data-lucide="users"></i>
+              <span>Thành viên</span>
+            </a>
+          </li>
+          <li>
+            <a href="tips.html" class="nav-link" id="nav-tips-link">
+              <i data-lucide="sparkles"></i>
+              <span>Mẹo nhà</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Mobile Nav Toggle -->
+      <button type="button" class="mobile-nav-toggle" aria-label="Mở menu di động">
+        <i data-lucide="menu"></i>
+      </button>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-menu-drawer">
+      <a href="index.html" class="nav-link">
+        <i data-lucide="calendar"></i>
+        <span>Thực đơn tuần</span>
+      </a>
+      <a href="dishes.html" class="nav-link">
+        <i data-lucide="chef-hat"></i>
+        <span>Danh sách món ăn</span>
+      </a>
+      <a href="members.html" class="nav-link active">
+        <i data-lucide="users"></i>
+        <span>Thành viên gia đình</span>
+      </a>
+      <a href="tips.html" class="nav-link">
+        <i data-lucide="sparkles"></i>
+        <span>Mẹo chăm sóc nhà</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="page-container">
+    
+    <!-- Page Header & Action Bar -->
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1 class="page-title">Thành viên gia đình</h1>
+        <p class="page-description">
+          Quản lý thành viên, khẩu phần ăn và lịch ăn mặc định theo ngày & bữa trong tuần.
+        </p>
+      </div>
+      <div class="page-actions">
+        <button type="button" class="btn btn-primary" id="btn-open-add-member">
+          <i data-lucide="plus"></i>
+          <span>Thêm thành viên</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats Summary Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon-wrapper" style="background: var(--primary-soft); color: var(--primary);">
+          <i data-lucide="users"></i>
+        </div>
+        <div>
+          <div class="stat-number" id="stat-total-members">0</div>
+          <div class="stat-label">Tổng thành viên</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper" style="background: var(--category-veg-bg); color: var(--category-veg);">
+          <i data-lucide="utensils-crossed"></i>
+        </div>
+        <div>
+          <div class="stat-number" id="stat-total-meals">0</div>
+          <div class="stat-label">Suất ăn gia đình / tuần</div>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-icon-wrapper" style="background: var(--category-soup-bg); color: var(--category-soup);">
+          <i data-lucide="shield-alert"></i>
+        </div>
+        <div>
+          <div class="stat-number" id="stat-dietary-count">0</div>
+          <div class="stat-label">Người có quy tắc ăn riêng</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="filter-bar">
+      <div class="search-input-wrapper">
+        <i data-lucide="search"></i>
+        <input type="text" class="search-input" id="search-member-input" placeholder="Tìm thành viên theo tên hoặc quy tắc ăn...">
+      </div>
+    </div>
+
+    <!-- Members Grid / Cards Container -->
+    <div class="members-grid" id="members-grid">
+      <!-- Member cards populated dynamically via members.js -->
+    </div>
+
+  </main>
+
+  <!-- Add / Edit Member Modal -->
+  <div class="modal-overlay" id="member-modal">
+    <div class="modal-dialog" style="max-width: 640px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="member-modal-title">Thêm thành viên mới</h3>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-member-modal" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      
+      <form id="member-form">
+        <div class="modal-body">
+          <input type="hidden" id="member-id">
+
+          <!-- Row: Name & Birth Date -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+            <div class="form-group">
+              <label class="form-label" for="member-name">
+                Tên thành viên <span class="required">*</span>
+              </label>
+              <input type="text" class="form-input" id="member-name" placeholder="Ví dụ: Bố, Mẹ, Bé Minh..." required>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="member-birthdate">
+                Ngày sinh <span id="member-age-preview" class="member-age-tag" style="display: none;"></span>
+              </label>
+              <input type="date" class="form-input" id="member-birthdate">
+              <div class="form-hint">Tuổi sẽ được hệ thống tự động tính từ ngày sinh.</div>
+            </div>
+          </div>
+
+          <!-- Portion Size -->
+          <div class="form-group">
+            <label class="form-label" for="member-portion">Khẩu phần ăn</label>
+            <select class="form-select" id="member-portion">
+              <option value="small">Nhỏ (trẻ nhỏ / người ăn ít)</option>
+              <option value="medium">Vừa (người lớn ăn thanh đạm)</option>
+              <option value="standard" selected>Tiêu chuẩn (mức ăn thông thường)</option>
+              <option value="large">Lớn (người lao động / thanh thiếu niên)</option>
+            </select>
+            <div class="form-hint">Khẩu phần tương đối dùng để ước lượng lượng thức ăn trong gia đình.</div>
+          </div>
+
+          <!-- Dietary Rules (Dynamic rows) -->
+          <div class="form-group">
+            <label class="form-label">Quy tắc & Thói quen ăn uống</label>
+            <div id="dietary-rules-container">
+              <!-- Dynamic dietary rule inputs -->
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-add-dietary-rule" style="margin-top: 6px;">
+              <i data-lucide="plus"></i> Thêm quy tắc (VD: Không cay, Hạn chế muối...)
+            </button>
+          </div>
+
+          <!-- Health Notes -->
+          <div class="form-group">
+            <label class="form-label" for="member-health-notes">Ghi chú sức khỏe / Dị ứng</label>
+            <textarea class="form-textarea" id="member-health-notes" rows="2" placeholder="Ví dụ: Dị ứng tôm cua, tiền sử đau dạ dày... (Chỉ dùng để lưu ghi nhớ nội bộ)"></textarea>
+          </div>
+
+          <!-- Default Meal Schedule -->
+          <div class="form-group" style="margin-bottom: 0;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+              <label class="form-label" style="margin-bottom: 0;">Lịch ăn cơm mặc định trong tuần</label>
+              
+              <!-- Quick shortcuts toolbar -->
+              <div class="schedule-quick-toolbar">
+                <button type="button" class="btn-sched-chip" id="btn-sched-all">Chọn tất cả</button>
+                <button type="button" class="btn-sched-chip" id="btn-sched-dinner-only">Chỉ bữa tối</button>
+                <button type="button" class="btn-sched-chip" id="btn-sched-copy-mon">Sao chép T2 → T3–T6</button>
+                <button type="button" class="btn-sched-chip" id="btn-sched-none">Bỏ tất cả</button>
+              </div>
+            </div>
+
+            <!-- Schedule Table -->
+            <div class="schedule-table-wrapper">
+              <table class="schedule-table">
+                <thead>
+                  <tr>
+                    <th>Ngày</th>
+                    <th>Sáng</th>
+                    <th>Trưa</th>
+                    <th>Tối</th>
+                  </tr>
+                </thead>
+                <tbody id="schedule-tbody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+            <div class="form-hint">Lịch này làm khuôn mẫu mặc định khi tạo thực đơn tuần mới. Bạn vẫn có thể chỉnh từng bữa riêng lẻ trên thực đơn.</div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="btn-cancel-member">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-member">
+            <i data-lucide="check"></i>
+            <span>Lưu thành viên</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+  <!-- App Scripts -->
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/members.js"></script>
+</body>
+</html>
