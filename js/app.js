@@ -9,7 +9,8 @@
     main: { label: 'Món chính', badgeClass: 'badge-main', slotClass: 'main' },
     vegetable: { label: 'Rau', badgeClass: 'badge-veg', slotClass: 'veg' },
     soup: { label: 'Canh', badgeClass: 'badge-soup', slotClass: 'soup' },
-    side: { label: 'Món phụ', badgeClass: 'badge-side', slotClass: 'side' }
+    side: { label: 'Món phụ', badgeClass: 'badge-side', slotClass: 'side' },
+    single: { label: 'Món ăn riêng', badgeClass: 'badge-single', slotClass: 'single' }
   };
 
   const TIP_CATEGORIES = {
@@ -267,15 +268,186 @@
     return schedule;
   }
 
+  // Phase 2: Portion Factors mapping (standard = 1 standard serving)
+  const PORTION_FACTORS = {
+    small: 0.5,
+    medium: 0.75,
+    standard: 1,
+    large: 1.25
+  };
+
+  // Phase 2: Supported measurement units
+  const SUPPORTED_UNITS = [
+    // Khối lượng
+    { key: 'g', label: 'g', type: 'weight', baseUnit: 'g', factor: 1 },
+    { key: 'kg', label: 'kg', type: 'weight', baseUnit: 'g', factor: 1000 },
+    // Thể tích
+    { key: 'ml', label: 'ml', type: 'volume', baseUnit: 'ml', factor: 1 },
+    { key: 'l', label: 'l', type: 'volume', baseUnit: 'ml', factor: 1000 },
+    // Đếm
+    { key: 'quả', label: 'quả', type: 'count', baseUnit: 'quả', factor: 1 },
+    { key: 'cái', label: 'cái', type: 'count', baseUnit: 'cái', factor: 1 },
+    { key: 'gói', label: 'gói', type: 'count', baseUnit: 'gói', factor: 1 },
+    { key: 'hộp', label: 'hộp', type: 'count', baseUnit: 'hộp', factor: 1 },
+    { key: 'bó', label: 'bó', type: 'count', baseUnit: 'bó', factor: 1 },
+    { key: 'củ', label: 'củ', type: 'count', baseUnit: 'củ', factor: 1 },
+    { key: 'miếng', label: 'miếng', type: 'count', baseUnit: 'miếng', factor: 1 },
+    { key: 'chai', label: 'chai', type: 'count', baseUnit: 'chai', factor: 1 },
+    { key: 'lon', label: 'lon', type: 'count', baseUnit: 'lon', factor: 1 },
+    { key: 'thìa', label: 'thìa', type: 'count', baseUnit: 'thìa', factor: 1 },
+    { key: 'muỗng', label: 'muỗng', type: 'count', baseUnit: 'muỗng', factor: 1 }
+  ];
+
+  /**
+   * Normalize ingredient name: trim, lowercase, collapse multiple spaces.
+   * Keeps Vietnamese diacritics.
+   */
+  function normalizeIngredientName(name) {
+    if (!name || typeof name !== 'string') return '';
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Get unit info with base unit and conversion factor
+   */
+  function getUnitInfo(unit) {
+    if (!unit || typeof unit !== 'string') {
+      return { key: '', label: '', type: 'other', baseUnit: '', factor: 1 };
+    }
+    const clean = unit.trim().toLowerCase();
+    const found = SUPPORTED_UNITS.find(u => u.key.toLowerCase() === clean);
+    if (found) return found;
+    return { key: unit.trim(), label: unit.trim(), type: 'other', baseUnit: unit.trim(), factor: 1 };
+  }
+
+  /**
+   * Convert quantity to base unit (kg -> g, l -> ml)
+   */
+  function convertToBaseUnit(quantity, unit) {
+    const qty = typeof quantity === 'number' ? quantity : parseFloat(quantity) || 0;
+    const unitInfo = getUnitInfo(unit);
+    const converted = qty * unitInfo.factor;
+    return {
+      quantity: converted,
+      baseQuantity: converted,
+      baseUnit: unitInfo.baseUnit,
+      type: unitInfo.type
+    };
+  }
+
+  /**
+   * Format ingredient quantity & unit for display.
+   * If g >= 1000 -> displays in kg (e.g. 1500 g -> 1.5 kg)
+   * If ml >= 1000 -> displays in l (e.g. 1500 ml -> 1.5 l)
+   * Returns a String instance that also exposes .amount and .unit properties.
+   */
+  function formatIngredientDisplay(quantity, unit) {
+    const qty = typeof quantity === 'number' ? quantity : parseFloat(quantity) || 0;
+    const u = (unit || '').trim().toLowerCase();
+
+    let text = `${qty} ${unit || ''}`.trim();
+    let amount = qty;
+    let outUnit = unit || '';
+
+    if (u === 'g' || u === 'kg') {
+      const totalG = u === 'kg' ? qty * 1000 : qty;
+      if (totalG >= 1000) {
+        amount = Math.round((totalG / 1000) * 100) / 100;
+        outUnit = 'kg';
+        text = `${amount} kg`;
+      } else {
+        amount = Math.round(totalG * 100) / 100;
+        outUnit = 'g';
+        text = `${amount} g`;
+      }
+    } else if (u === 'ml' || u === 'l') {
+      const totalMl = u === 'l' ? qty * 1000 : qty;
+      if (totalMl >= 1000) {
+        amount = Math.round((totalMl / 1000) * 100) / 100;
+        outUnit = 'l';
+        text = `${amount} l`;
+      } else {
+        amount = Math.round(totalMl * 100) / 100;
+        outUnit = 'ml';
+        text = `${amount} ml`;
+      }
+    }
+
+    const str = new String(text);
+    str.amount = amount;
+    str.unit = outUnit;
+    return str;
+  }
+
+  /**
+   * Calculate total standard servings for a meal from memberIds and members.
+   * Safely ignores deleted or missing member IDs.
+   */
+  function calculateMealServings(memberIds, members) {
+    if (!Array.isArray(memberIds) || memberIds.length === 0) return 0;
+    const memberMap = new Map();
+    if (Array.isArray(members)) {
+      members.forEach(m => {
+        if (m && m.id) memberMap.set(m.id, m);
+      });
+    }
+
+    let total = 0;
+    memberIds.forEach(id => {
+      const mem = memberMap.get(id);
+      if (mem) {
+        const portionKey = mem.portionSize || 'standard';
+        const factor = PORTION_FACTORS[portionKey] !== undefined ? PORTION_FACTORS[portionKey] : 1;
+        total += factor;
+      }
+    });
+
+    return Math.round(total * 100) / 100;
+  }
+
+  /**
+   * Calculate scaled ingredient quantities for a dish.
+   * scale = totalServings / dish.baseServings
+   */
+  function calculateDishIngredients(dish, totalServings) {
+    if (!dish || typeof dish !== 'object') return [];
+    const baseServings = typeof dish.baseServings === 'number' && dish.baseServings > 0 ? dish.baseServings : 0;
+    if (baseServings <= 0 || !Array.isArray(dish.ingredients) || dish.ingredients.length === 0) {
+      return [];
+    }
+    if (typeof totalServings !== 'number' || totalServings <= 0) {
+      return [];
+    }
+    const scale = totalServings / baseServings;
+    return dish.ingredients.map(ing => {
+      const qty = typeof ing.quantity === 'number' ? ing.quantity : parseFloat(ing.quantity) || 0;
+      return {
+        id: ing.id,
+        name: ing.name,
+        quantity: Math.round(qty * scale * 1000) / 1000,
+        scaledQuantity: Math.round(qty * scale * 1000) / 1000,
+        unit: ing.unit
+      };
+    });
+  }
+
   // Export
   window.AppUtils = {
     DISH_CATEGORIES,
     TIP_CATEGORIES,
     PORTION_SIZES,
+    PORTION_FACTORS,
+    SUPPORTED_UNITS,
     DAYS_OF_WEEK,
     MEAL_TYPES,
     calculateAge,
     createDefaultMealSchedule,
+    calculateMealServings,
+    calculateDishIngredients,
+    normalizeIngredientName,
+    getUnitInfo,
+    convertToBaseUnit,
+    formatIngredientDisplay,
     escapeHtml,
     showToast,
     showConfirmModal,

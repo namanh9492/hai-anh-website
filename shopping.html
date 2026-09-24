@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danh sách đi chợ – Tổ Ấm Gia Đình</title>
+  <meta name="description" content="Tổng hợp lượng nguyên liệu cần mua cho cả tuần theo thực đơn và số người ăn của từng bữa.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar (Noibo style) -->
+  <header class="topbar">
+    <div class="topbar-container">
+      <a href="index.html" class="brand-link" id="brand-logo-link">
+        <div class="brand-icon-box">
+          <i data-lucide="utensils"></i>
+        </div>
+        <div>
+          <span>Tổ Ấm Hải Anh</span>
+          <span class="brand-text-sub">Thực đơn & Chăm sóc nhà</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav aria-label="Menu chính">
+        <ul class="nav-menu">
+          <li>
+            <a href="index.html" class="nav-link" id="nav-menu-link">
+              <i data-lucide="calendar"></i>
+              <span>Thực đơn</span>
+            </a>
+          </li>
+          <li>
+            <a href="dishes.html" class="nav-link" id="nav-dishes-link">
+              <i data-lucide="chef-hat"></i>
+              <span>Danh sách món</span>
+            </a>
+          </li>
+          <li>
+            <a href="shopping.html" class="nav-link active" id="nav-shopping-link">
+              <i data-lucide="shopping-bag"></i>
+              <span>Đi chợ</span>
+            </a>
+          </li>
+          <li>
+            <a href="members.html" class="nav-link" id="nav-members-link">
+              <i data-lucide="users"></i>
+              <span>Thành viên</span>
+            </a>
+          </li>
+          <li>
+            <a href="tips.html" class="nav-link" id="nav-tips-link">
+              <i data-lucide="sparkles"></i>
+              <span>Mẹo nhà</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Mobile Nav Toggle -->
+      <button type="button" class="mobile-nav-toggle" aria-label="Mở menu di động">
+        <i data-lucide="menu"></i>
+      </button>
+    </div>
+
+    <!-- Mobile Drawer -->
+    <div class="mobile-menu-drawer">
+      <a href="index.html" class="nav-link">
+        <i data-lucide="calendar"></i>
+        <span>Thực đơn</span>
+      </a>
+      <a href="dishes.html" class="nav-link">
+        <i data-lucide="chef-hat"></i>
+        <span>Danh sách món</span>
+      </a>
+      <a href="shopping.html" class="nav-link active">
+        <i data-lucide="shopping-bag"></i>
+        <span>Đi chợ</span>
+      </a>
+      <a href="members.html" class="nav-link">
+        <i data-lucide="users"></i>
+        <span>Thành viên</span>
+      </a>
+      <a href="tips.html" class="nav-link">
+        <i data-lucide="sparkles"></i>
+        <span>Mẹo nhà</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="page-title-group">
+        <h1>Danh sách đi chợ</h1>
+        <p class="page-subtitle">Tự động tổng hợp lượng nguyên liệu cần mua cho cả tuần theo người ăn thực tế và khẩu phần.</p>
+      </div>
+
+      <div class="page-actions">
+        <button type="button" class="btn btn-outline" id="btn-copy-shopping" title="Sao chép danh sách đi chợ vào clipboard">
+          <i data-lucide="copy"></i>
+          <span>Sao chép</span>
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-quick-next-week" title="Xem danh sách đi chợ tuần sau">
+          <i data-lucide="calendar-plus"></i>
+          <span>Tuần sau</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Week Navigator Bar -->
+    <div class="week-navigator">
+      <div class="week-range-display">
+        <i data-lucide="calendar-range" style="color: var(--primary); width: 20px; height: 20px;"></i>
+        <span id="shopping-week-range-text">Đang tải...</span>
+        <span id="shopping-week-badge" class="week-badge">Tuần này</span>
+      </div>
+
+      <div class="week-nav-controls">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-shopping-prev" title="Tuần trước">
+          <i data-lucide="chevron-left"></i>
+          <span>Tuần trước</span>
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-shopping-current" title="Quay lại tuần này">
+          <span>Tuần này</span>
+        </button>
+        <button type="button" class="btn btn-outline btn-sm" id="btn-shopping-next" title="Tuần sau">
+          <span>Tuần sau</span>
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Overview Stats Bar -->
+    <section class="shopping-stats-card" id="shopping-stats-card">
+      <div class="stat-item">
+        <span class="stat-label">Tổng nguyên liệu</span>
+        <span class="stat-value" id="stat-total-items">0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Đã mua</span>
+        <span class="stat-value" id="stat-checked-items">0 / 0</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-label">Bữa ăn tại nhà</span>
+        <span class="stat-value" id="stat-meals-count">0 bữa</span>
+      </div>
+    </section>
+
+    <!-- Missing Recipe Warning Banner (Section 25) -->
+    <section class="missing-recipe-banner" id="missing-recipe-banner" style="display: none;" aria-live="polite">
+      <div class="banner-header">
+        <i data-lucide="alert-triangle" class="banner-icon"></i>
+        <div>
+          <h3 class="banner-title">⚠ Chưa tính được nguyên liệu cho một số món</h3>
+          <p class="banner-subtitle">
+            Danh sách hiện tại chỉ là ước tính dựa trên các món đã có dữ liệu nguyên liệu.
+          </p>
+        </div>
+      </div>
+      <ul class="missing-dish-list" id="missing-dish-list">
+        <!-- Rendered dynamically -->
+      </ul>
+    </section>
+
+    <!-- Shopping List Section -->
+    <section class="shopping-list-container" aria-label="Danh sách các nguyên liệu cần mua">
+      <div class="shopping-list-header">
+        <h2>Nguyên liệu cần chuẩn bị</h2>
+        <span class="text-muted" id="shopping-summary-hint">Tự động cộng dồn đơn vị g/kg và ml/l</span>
+      </div>
+
+      <div id="shopping-items-list" class="shopping-items-list">
+        <!-- Rendered dynamically via js/shopping.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Lucide Icons Script -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Core Logic Modules -->
+  <script src="js/app.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/menu-generator.js"></script>
+  <script src="js/shopping.js"></script>
+</body>
+</html>

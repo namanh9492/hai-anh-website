@@ -131,8 +131,48 @@
      * @param {string|null} nextDayDishId Dish from tomorrow to avoid consecutive repetition
      * @returns {Object|null} Selected dish
      */
-    selectDish(category, allDishes, currentWeekCountsMap = new Map(), usedInPrevWeekDishIds = new Set(), excludeDishId = null, previousDayDishId = null, nextDayDishId = null) {
-      const pool = allDishes.filter(d => d.category === category && d.enabled);
+    /**
+     * Select a dish for a specific slot considering:
+     * 1. Category matches, enabled === true, and mealType matches
+     * 2. Lowest occurrence count in current week (balanced distribution when < 7 dishes)
+     * 3. Avoids choosing the same dish as immediately preceding day (previousDayDishId) and next day (nextDayDishId)
+     * 4. Prioritizes dishes never eaten or with older lastUsedAt
+     * 5. Discourages dishes that appeared in previous week
+     * 6. Gentle randomness among top tied candidates
+     * 
+     * @param {string} category 'main' | 'vegetable' | 'soup' | 'side' | 'single'
+     * @param {Array} allDishes
+     * @param {Map<string, number>} currentWeekCountsMap dishId -> count
+     * @param {Set<string>} usedInPrevWeekDishIds
+     * @param {string|null} excludeDishId Dish currently in this slot (when swapping)
+     * @param {string|null} previousDayDishId Dish from yesterday to avoid consecutive repetition
+     * @param {string|null} nextDayDishId Dish from tomorrow to avoid consecutive repetition
+     * @param {string|null} mealType 'breakfast' | 'lunch' | 'dinner' | null
+     * @returns {Object|null} Selected dish
+     */
+    selectDish(category, allDishes, currentWeekCountsMap = new Map(), usedInPrevWeekDishIds = new Set(), excludeDishId = null, previousDayDishId = null, nextDayDishId = null, mealType = null) {
+      if (!Array.isArray(allDishes) || allDishes.length === 0) return null;
+
+      const hasMealType = (d, mType) => {
+        if (!mType) return true;
+        if (Array.isArray(d.mealTypes) && d.mealTypes.length > 0) {
+          return d.mealTypes.includes(mType);
+        }
+        if (d.category === 'single') return mType === 'breakfast';
+        return mType === 'lunch' || mType === 'dinner';
+      };
+
+      let pool = [];
+      if (category === 'single') {
+        // Priority for breakfast/single: dishes with category === 'single'
+        pool = allDishes.filter(d => d.enabled && hasMealType(d, mealType || 'breakfast') && d.category === 'single');
+        // Fallback: if no single category dish, allow other dishes that support this mealType
+        if (pool.length === 0) {
+          pool = allDishes.filter(d => d.enabled && hasMealType(d, mealType || 'breakfast'));
+        }
+      } else {
+        pool = allDishes.filter(d => d.category === category && d.enabled && hasMealType(d, mealType));
+      }
 
       if (pool.length === 0) return null;
       if (pool.length === 1) return pool[0];
@@ -206,10 +246,12 @@
     }
 
     /**
-     * Generate full 7-day weekly menu
+     * Generate full 7-day weekly menu with 3 meals per day: breakfast, lunch, dinner
      * Preserves:
-     * 1. Any day marked as isEaten === true (historical/finalized day - never overwritten)
-     * 2. Any dish slot marked as manual === true in uneaten days
+     * 1. Any meal marked as isEaten === true (historical/finalized meal - never overwritten)
+     * 2. Any dish slot marked as manual === true in uneaten meals
+     * 3. Any meal attendance with manualOverride === true
+     * 4. If meal attendance = 0 people -> no dishes generated (null)
      * 
      * @param {Date|string} mondayDate 
      * @param {Array} allDishes 
@@ -239,41 +281,82 @@
       const usedInPrevWeek = new Set();
       if (prevWeekMenu && Array.isArray(prevWeekMenu.days)) {
         prevWeekMenu.days.forEach(day => {
-          if (day.main && day.main.id) usedInPrevWeek.add(day.main.id);
-          if (day.vegetable && day.vegetable.id) usedInPrevWeek.add(day.vegetable.id);
-          if (day.soup && day.soup.id) usedInPrevWeek.add(day.soup.id);
+          if (day.meals) {
+            if (day.meals.breakfast?.single?.id) usedInPrevWeek.add(day.meals.breakfast.single.id);
+            ['lunch', 'dinner'].forEach(mKey => {
+              const m = day.meals[mKey];
+              if (m?.main?.id) usedInPrevWeek.add(m.main.id);
+              if (m?.vegetable?.id) usedInPrevWeek.add(m.vegetable.id);
+              if (m?.soup?.id) usedInPrevWeek.add(m.soup.id);
+            });
+          } else {
+            if (day.main && day.main.id) usedInPrevWeek.add(day.main.id);
+            if (day.vegetable && day.vegetable.id) usedInPrevWeek.add(day.vegetable.id);
+            if (day.soup && day.soup.id) usedInPrevWeek.add(day.soup.id);
+          }
         });
       }
 
       // Track dish occurrence counts in current week
+      const currentWeekBreakfastCount = new Map();
       const currentWeekMainsCount = new Map();
       const currentWeekVegsCount = new Map();
       const currentWeekSoupsCount = new Map();
 
-      // First pass: collect manual/locked dishes OR finalized eaten days from existing menu
+      // First pass: collect manual/locked dishes OR finalized eaten meals from existing menu
       const preservedDays = [];
       for (let i = 0; i < 7; i++) {
         const existingDay = existingMenu && existingMenu.days ? existingMenu.days[i] : null;
         preservedDays.push(existingDay);
 
         if (existingDay) {
-          const isEatenDay = !!existingDay.isEaten;
-          if (existingDay.main && (existingDay.main.manual || isEatenDay) && existingDay.main.id) {
-            currentWeekMainsCount.set(existingDay.main.id, (currentWeekMainsCount.get(existingDay.main.id) || 0) + 1);
-          }
-          if (existingDay.vegetable && (existingDay.vegetable.manual || isEatenDay) && existingDay.vegetable.id) {
-            currentWeekVegsCount.set(existingDay.vegetable.id, (currentWeekVegsCount.get(existingDay.vegetable.id) || 0) + 1);
-          }
-          if (existingDay.soup && (existingDay.soup.manual || isEatenDay) && existingDay.soup.id) {
-            currentWeekSoupsCount.set(existingDay.soup.id, (currentWeekSoupsCount.get(existingDay.soup.id) || 0) + 1);
+          const meals = existingDay.meals;
+          if (meals) {
+            // Breakfast
+            const b = meals.breakfast;
+            if (b && (b.isEaten || b.single?.manual) && b.single?.id) {
+              currentWeekBreakfastCount.set(b.single.id, (currentWeekBreakfastCount.get(b.single.id) || 0) + 1);
+            }
+            // Lunch & Dinner
+            ['lunch', 'dinner'].forEach(mKey => {
+              const m = meals[mKey];
+              if (m) {
+                const isEatenMeal = !!(m.isEaten || (mKey === 'dinner' && existingDay.isEaten));
+                if (m.main && (m.main.manual || isEatenMeal) && m.main.id) {
+                  currentWeekMainsCount.set(m.main.id, (currentWeekMainsCount.get(m.main.id) || 0) + 1);
+                }
+                if (m.vegetable && (m.vegetable.manual || isEatenMeal) && m.vegetable.id) {
+                  currentWeekVegsCount.set(m.vegetable.id, (currentWeekVegsCount.get(m.vegetable.id) || 0) + 1);
+                }
+                if (m.soup && (m.soup.manual || isEatenMeal) && m.soup.id) {
+                  currentWeekSoupsCount.set(m.soup.id, (currentWeekSoupsCount.get(m.soup.id) || 0) + 1);
+                }
+              }
+            });
+          } else {
+            // Legacy day
+            const isEatenDay = !!existingDay.isEaten;
+            if (existingDay.main && (existingDay.main.manual || isEatenDay) && existingDay.main.id) {
+              currentWeekMainsCount.set(existingDay.main.id, (currentWeekMainsCount.get(existingDay.main.id) || 0) + 1);
+            }
+            if (existingDay.vegetable && (existingDay.vegetable.manual || isEatenDay) && existingDay.vegetable.id) {
+              currentWeekVegsCount.set(existingDay.vegetable.id, (currentWeekVegsCount.get(existingDay.vegetable.id) || 0) + 1);
+            }
+            if (existingDay.soup && (existingDay.soup.manual || isEatenDay) && existingDay.soup.id) {
+              currentWeekSoupsCount.set(existingDay.soup.id, (currentWeekSoupsCount.get(existingDay.soup.id) || 0) + 1);
+            }
           }
         }
       }
 
       const days = [];
-      let prevMainId = null;
-      let prevVegId = null;
-      let prevSoupId = null;
+      let prevBreakfastId = null;
+      let prevDinnerMainId = null;
+      let prevDinnerVegId = null;
+      let prevDinnerSoupId = null;
+      let prevLunchMainId = null;
+      let prevLunchVegId = null;
+      let prevLunchSoupId = null;
 
       for (let i = 0; i < 7; i++) {
         const currentDate = weekDates[i];
@@ -281,7 +364,7 @@
         const dayLabel = DAY_LABELS[i];
         const dayKey = DAY_KEYS[i];
         const existingDay = preservedDays[i];
-        const isEatenDay = existingDay ? !!existingDay.isEaten : false;
+        const existingMeals = existingDay?.meals;
 
         // Compute default attendance snapshot for this day from current member schedules
         const defaultDayAttendance = {
@@ -299,129 +382,273 @@
           }
         };
 
-        // CRITICAL: Eaten days are historical/finalized. Preserve entire day and attendance!
-        if (isEatenDay) {
-          const eatenAttendance = (existingDay && existingDay.attendance) ? {
-            breakfast: {
-              memberIds: Array.isArray(existingDay.attendance.breakfast?.memberIds) ? [...existingDay.attendance.breakfast.memberIds] : [...defaultDayAttendance.breakfast.memberIds],
-              manualOverride: !!existingDay.attendance.breakfast?.manualOverride
-            },
-            lunch: {
-              memberIds: Array.isArray(existingDay.attendance.lunch?.memberIds) ? [...existingDay.attendance.lunch.memberIds] : [...defaultDayAttendance.lunch.memberIds],
-              manualOverride: !!existingDay.attendance.lunch?.manualOverride
-            },
-            dinner: {
-              memberIds: Array.isArray(existingDay.attendance.dinner?.memberIds) ? [...existingDay.attendance.dinner.memberIds] : [...defaultDayAttendance.dinner.memberIds],
-              manualOverride: !!existingDay.attendance.dinner?.manualOverride
-            }
-          } : defaultDayAttendance;
-
-          days.push({
-            date: dateISO,
-            dayIndex: i,
-            dayLabel: dayLabel,
-            isEaten: true,
-            main: existingDay.main,
-            vegetable: existingDay.vegetable,
-            soup: existingDay.soup,
-            side: existingDay.side,
-            attendance: eatenAttendance
-          });
-          prevMainId = existingDay.main ? existingDay.main.id : null;
-          prevVegId = existingDay.vegetable ? existingDay.vegetable.id : null;
-          prevSoupId = existingDay.soup ? existingDay.soup.id : null;
-          continue;
-        }
-
-        // Look ahead: check if next day is already preserved (eaten or manual)
-        const nextPreserved = preservedDays[i + 1];
-        const nextMainId = nextPreserved && nextPreserved.main && (nextPreserved.main.manual || nextPreserved.isEaten) ? nextPreserved.main.id : null;
-        const nextVegId = nextPreserved && nextPreserved.vegetable && (nextPreserved.vegetable.manual || nextPreserved.isEaten) ? nextPreserved.vegetable.id : null;
-        const nextSoupId = nextPreserved && nextPreserved.soup && (nextPreserved.soup.manual || nextPreserved.isEaten) ? nextPreserved.soup.id : null;
-
-        // 1. Main Dish
-        let mainDish = null;
-        if (existingDay && existingDay.main && existingDay.main.manual) {
-          mainDish = existingDay.main;
-          prevMainId = existingDay.main.id;
-        } else {
-          const pickedMain = this.selectDish('main', allDishes, currentWeekMainsCount, usedInPrevWeek, null, prevMainId, nextMainId);
-          if (pickedMain) {
-            mainDish = {
-              id: pickedMain.id,
-              name: pickedMain.name,
-              category: 'main',
-              manual: false
+        // Determine snapshot attendance for each meal (preserves manual overrides)
+        const getMealAttendance = (mKey) => {
+          const existingAtt = existingMeals?.[mKey]?.attendance || existingDay?.attendance?.[mKey];
+          if (existingAtt && existingAtt.manualOverride) {
+            return {
+              memberIds: Array.isArray(existingAtt.memberIds) ? [...existingAtt.memberIds] : [],
+              manualOverride: true
             };
-            currentWeekMainsCount.set(pickedMain.id, (currentWeekMainsCount.get(pickedMain.id) || 0) + 1);
-            prevMainId = pickedMain.id;
           }
-        }
-
-        // 2. Vegetable
-        let vegDish = null;
-        if (existingDay && existingDay.vegetable && existingDay.vegetable.manual) {
-          vegDish = existingDay.vegetable;
-          prevVegId = existingDay.vegetable.id;
-        } else {
-          const pickedVeg = this.selectDish('vegetable', allDishes, currentWeekVegsCount, usedInPrevWeek, null, prevVegId, nextVegId);
-          if (pickedVeg) {
-            vegDish = {
-              id: pickedVeg.id,
-              name: pickedVeg.name,
-              category: 'vegetable',
-              manual: false
-            };
-            currentWeekVegsCount.set(pickedVeg.id, (currentWeekVegsCount.get(pickedVeg.id) || 0) + 1);
-            prevVegId = pickedVeg.id;
-          }
-        }
-
-        // 3. Soup
-        let soupDish = null;
-        if (existingDay && existingDay.soup && existingDay.soup.manual) {
-          soupDish = existingDay.soup;
-          prevSoupId = existingDay.soup.id;
-        } else {
-          const pickedSoup = this.selectDish('soup', allDishes, currentWeekSoupsCount, usedInPrevWeek, null, prevSoupId, nextSoupId);
-          if (pickedSoup) {
-            soupDish = {
-              id: pickedSoup.id,
-              name: pickedSoup.name,
-              category: 'soup',
-              manual: false
-            };
-            currentWeekSoupsCount.set(pickedSoup.id, (currentWeekSoupsCount.get(pickedSoup.id) || 0) + 1);
-            prevSoupId = pickedSoup.id;
-          }
-        }
-
-        // 4. Side dish (optional: keep if existing, else null)
-        const sideDish = existingDay && existingDay.side ? existingDay.side : null;
-
-        // Attendance snapshot: preserve meals that were manually overridden in existing menu
-        const dayAttendance = {
-          breakfast: (existingDay && existingDay.attendance?.breakfast?.manualOverride)
-            ? { memberIds: [...existingDay.attendance.breakfast.memberIds], manualOverride: true }
-            : defaultDayAttendance.breakfast,
-          lunch: (existingDay && existingDay.attendance?.lunch?.manualOverride)
-            ? { memberIds: [...existingDay.attendance.lunch.memberIds], manualOverride: true }
-            : defaultDayAttendance.lunch,
-          dinner: (existingDay && existingDay.attendance?.dinner?.manualOverride)
-            ? { memberIds: [...existingDay.attendance.dinner.memberIds], manualOverride: true }
-            : defaultDayAttendance.dinner
+          return defaultDayAttendance[mKey];
         };
 
+        const bAttendance = getMealAttendance('breakfast');
+        const lAttendance = getMealAttendance('lunch');
+        const dAttendance = getMealAttendance('dinner');
+
+        // Helper to check if a meal has attendance (if no members are defined at all, fallback to dinner only for V1 compatibility)
+        const hasMealAttendance = (att, mKey) => {
+          if (members.length === 0) {
+            return mKey === 'dinner';
+          }
+          return Array.isArray(att?.memberIds) && att.memberIds.length > 0;
+        };
+
+        // Check lookahead preserved dishes for dinner
+        const nextPreserved = preservedDays[i + 1];
+        const nextDinnerMainId = nextPreserved?.meals?.dinner?.main?.id || nextPreserved?.main?.id || null;
+        const nextDinnerVegId = nextPreserved?.meals?.dinner?.vegetable?.id || nextPreserved?.vegetable?.id || null;
+        const nextDinnerSoupId = nextPreserved?.meals?.dinner?.soup?.id || nextPreserved?.soup?.id || null;
+
+        // --- 1. BREAKFAST GENERATION ---
+        let breakfastMeal = null;
+        const existingB = existingMeals?.breakfast;
+        const isBEaten = existingB ? !!existingB.isEaten : false;
+
+        if (!hasMealAttendance(bAttendance, 'breakfast')) {
+          // No attendance -> no food generated
+          breakfastMeal = {
+            type: 'single',
+            single: null,
+            attendance: bAttendance,
+            isEaten: false
+          };
+        } else if (isBEaten && existingB?.single) {
+          // Eaten breakfast -> preserve completely
+          breakfastMeal = {
+            type: 'single',
+            single: existingB.single,
+            attendance: bAttendance,
+            isEaten: true
+          };
+          prevBreakfastId = existingB.single.id;
+        } else if (existingB?.single?.manual) {
+          // Manual dish in breakfast
+          breakfastMeal = {
+            type: 'single',
+            single: existingB.single,
+            attendance: bAttendance,
+            isEaten: false
+          };
+          prevBreakfastId = existingB.single.id;
+        } else {
+          // Generate breakfast dish
+          const pickedB = this.selectDish('single', allDishes, currentWeekBreakfastCount, usedInPrevWeek, null, prevBreakfastId, null, 'breakfast');
+          let singleDish = null;
+          if (pickedB) {
+            singleDish = {
+              id: pickedB.id,
+              name: pickedB.name,
+              category: pickedB.category,
+              manual: false
+            };
+            currentWeekBreakfastCount.set(pickedB.id, (currentWeekBreakfastCount.get(pickedB.id) || 0) + 1);
+            prevBreakfastId = pickedB.id;
+          }
+          breakfastMeal = {
+            type: 'single',
+            single: singleDish,
+            attendance: bAttendance,
+            isEaten: false
+          };
+        }
+
+        // --- 2. LUNCH GENERATION ---
+        let lunchMeal = null;
+        const existingL = existingMeals?.lunch;
+        const isLEaten = existingL ? !!existingL.isEaten : false;
+
+        if (!hasMealAttendance(lAttendance, 'lunch')) {
+          // No attendance -> no food
+          lunchMeal = {
+            type: 'family',
+            main: null,
+            vegetable: null,
+            soup: null,
+            side: null,
+            attendance: lAttendance,
+            isEaten: false
+          };
+        } else if (isLEaten && (existingL.main || existingL.vegetable || existingL.soup)) {
+          // Eaten lunch -> preserve completely
+          lunchMeal = {
+            type: 'family',
+            main: existingL.main,
+            vegetable: existingL.vegetable,
+            soup: existingL.soup,
+            side: existingL.side || null,
+            attendance: lAttendance,
+            isEaten: true
+          };
+          prevLunchMainId = existingL.main?.id || null;
+          prevLunchVegId = existingL.vegetable?.id || null;
+          prevLunchSoupId = existingL.soup?.id || null;
+        } else {
+          // Generate or preserve manual slots for lunch
+          let lMain = null;
+          if (existingL?.main?.manual) {
+            lMain = existingL.main;
+            prevLunchMainId = existingL.main.id;
+          } else {
+            const picked = this.selectDish('main', allDishes, currentWeekMainsCount, usedInPrevWeek, null, prevLunchMainId, null, 'lunch');
+            if (picked) {
+              lMain = { id: picked.id, name: picked.name, category: 'main', manual: false };
+              currentWeekMainsCount.set(picked.id, (currentWeekMainsCount.get(picked.id) || 0) + 1);
+              prevLunchMainId = picked.id;
+            }
+          }
+
+          let lVeg = null;
+          if (existingL?.vegetable?.manual) {
+            lVeg = existingL.vegetable;
+            prevLunchVegId = existingL.vegetable.id;
+          } else {
+            const picked = this.selectDish('vegetable', allDishes, currentWeekVegsCount, usedInPrevWeek, null, prevLunchVegId, null, 'lunch');
+            if (picked) {
+              lVeg = { id: picked.id, name: picked.name, category: 'vegetable', manual: false };
+              currentWeekVegsCount.set(picked.id, (currentWeekVegsCount.get(picked.id) || 0) + 1);
+              prevLunchVegId = picked.id;
+            }
+          }
+
+          let lSoup = null;
+          if (existingL?.soup?.manual) {
+            lSoup = existingL.soup;
+            prevLunchSoupId = existingL.soup.id;
+          } else {
+            const picked = this.selectDish('soup', allDishes, currentWeekSoupsCount, usedInPrevWeek, null, prevLunchSoupId, null, 'lunch');
+            if (picked) {
+              lSoup = { id: picked.id, name: picked.name, category: 'soup', manual: false };
+              currentWeekSoupsCount.set(picked.id, (currentWeekSoupsCount.get(picked.id) || 0) + 1);
+              prevLunchSoupId = picked.id;
+            }
+          }
+
+          lunchMeal = {
+            type: 'family',
+            main: lMain,
+            vegetable: lVeg,
+            soup: lSoup,
+            side: existingL?.side || null,
+            attendance: lAttendance,
+            isEaten: false
+          };
+        }
+
+        // --- 3. DINNER GENERATION ---
+        let dinnerMeal = null;
+        const existingD = existingMeals?.dinner || existingDay;
+        const isDEaten = !!(existingMeals?.dinner?.isEaten || existingDay?.isEaten);
+
+        if (!hasMealAttendance(dAttendance, 'dinner')) {
+          // No attendance -> no food
+          dinnerMeal = {
+            type: 'family',
+            main: null,
+            vegetable: null,
+            soup: null,
+            side: null,
+            attendance: dAttendance,
+            isEaten: false
+          };
+        } else if (isDEaten && (existingD?.main || existingD?.vegetable || existingD?.soup)) {
+          // Eaten dinner -> preserve completely
+          dinnerMeal = {
+            type: 'family',
+            main: existingD.main,
+            vegetable: existingD.vegetable,
+            soup: existingD.soup,
+            side: existingD.side || null,
+            attendance: dAttendance,
+            isEaten: true
+          };
+          prevDinnerMainId = existingD.main?.id || null;
+          prevDinnerVegId = existingD.vegetable?.id || null;
+          prevDinnerSoupId = existingD.soup?.id || null;
+        } else {
+          // Generate or preserve manual slots for dinner
+          let dMain = null;
+          if (existingD?.main?.manual) {
+            dMain = existingD.main;
+            prevDinnerMainId = existingD.main.id;
+          } else {
+            const picked = this.selectDish('main', allDishes, currentWeekMainsCount, usedInPrevWeek, null, prevDinnerMainId, nextDinnerMainId, 'dinner');
+            if (picked) {
+              dMain = { id: picked.id, name: picked.name, category: 'main', manual: false };
+              currentWeekMainsCount.set(picked.id, (currentWeekMainsCount.get(picked.id) || 0) + 1);
+              prevDinnerMainId = picked.id;
+            }
+          }
+
+          let dVeg = null;
+          if (existingD?.vegetable?.manual) {
+            dVeg = existingD.vegetable;
+            prevDinnerVegId = existingD.vegetable.id;
+          } else {
+            const picked = this.selectDish('vegetable', allDishes, currentWeekVegsCount, usedInPrevWeek, null, prevDinnerVegId, nextDinnerVegId, 'dinner');
+            if (picked) {
+              dVeg = { id: picked.id, name: picked.name, category: 'vegetable', manual: false };
+              currentWeekVegsCount.set(picked.id, (currentWeekVegsCount.get(picked.id) || 0) + 1);
+              prevDinnerVegId = picked.id;
+            }
+          }
+
+          let dSoup = null;
+          if (existingD?.soup?.manual) {
+            dSoup = existingD.soup;
+            prevDinnerSoupId = existingD.soup.id;
+          } else {
+            const picked = this.selectDish('soup', allDishes, currentWeekSoupsCount, usedInPrevWeek, null, prevDinnerSoupId, nextDinnerSoupId, 'dinner');
+            if (picked) {
+              dSoup = { id: picked.id, name: picked.name, category: 'soup', manual: false };
+              currentWeekSoupsCount.set(picked.id, (currentWeekSoupsCount.get(picked.id) || 0) + 1);
+              prevDinnerSoupId = picked.id;
+            }
+          }
+
+          dinnerMeal = {
+            type: 'family',
+            main: dMain,
+            vegetable: dVeg,
+            soup: dSoup,
+            side: existingD?.side || null,
+            attendance: dAttendance,
+            isEaten: false
+          };
+        }
+
+        // Assemble day with meals and top-level backward compatible aliases
         days.push({
           date: dateISO,
           dayIndex: i,
           dayLabel: dayLabel,
-          isEaten: false,
-          main: mainDish,
-          vegetable: vegDish,
-          soup: soupDish,
-          side: sideDish,
-          attendance: dayAttendance
+          meals: {
+            breakfast: breakfastMeal,
+            lunch: lunchMeal,
+            dinner: dinnerMeal
+          },
+          main: dinnerMeal.main,
+          vegetable: dinnerMeal.vegetable,
+          soup: dinnerMeal.soup,
+          side: dinnerMeal.side,
+          isEaten: dinnerMeal.isEaten,
+          attendance: {
+            breakfast: breakfastMeal.attendance,
+            lunch: lunchMeal.attendance,
+            dinner: dinnerMeal.attendance
+          }
         });
       }
 
@@ -436,26 +663,47 @@
     }
 
     /**
-     * Swap a single dish slot for a day
+     * Swap a single dish slot for a day and meal
      * Detects whether an alternative dish actually exists and changed.
      * Avoids choosing the dish of the previous day AND next day if possible.
      * 
      * @param {Object} weekMenu 
      * @param {number} dayIndex (0 - 6)
-     * @param {string} slotKey ('main' | 'vegetable' | 'soup' | 'side')
+     * @param {string} slotKey ('main' | 'vegetable' | 'soup' | 'side' | 'single')
      * @param {Array} allDishes 
+     * @param {string} mealKey ('breakfast' | 'lunch' | 'dinner')
      * @returns {Object} Result with { changed: boolean, newDish: Object|null, weekMenu: Object, ... }
      */
-    swapSingleDish(weekMenu, dayIndex, slotKey, allDishes) {
+    swapSingleDish(weekMenu, dayIndex, slotKey, allDishes, mealKey = 'dinner') {
       if (!weekMenu || !weekMenu.days || !weekMenu.days[dayIndex]) {
         return { changed: false, reason: 'invalid_menu', weekMenu, days: weekMenu ? weekMenu.days : [] };
       }
 
       const currentDay = weekMenu.days[dayIndex];
-      const currentDish = currentDay[slotKey];
+      const actualMealKey = slotKey === 'single' ? 'breakfast' : (mealKey || 'dinner');
+      const targetMeal = currentDay.meals ? currentDay.meals[actualMealKey] : null;
+
+      const currentDish = (targetMeal && targetMeal[slotKey]) ? targetMeal[slotKey] : currentDay[slotKey];
       const excludeDishId = currentDish ? currentDish.id : null;
 
-      const enabledPool = allDishes.filter(d => d.category === slotKey && d.enabled);
+      const hasMealType = (d, mType) => {
+        if (!mType) return true;
+        if (Array.isArray(d.mealTypes) && d.mealTypes.length > 0) return d.mealTypes.includes(mType);
+        if (d.category === 'single') return mType === 'breakfast';
+        return mType === 'lunch' || mType === 'dinner';
+      };
+
+      const categoryToFilter = slotKey === 'single' ? 'single' : slotKey;
+      let enabledPool = [];
+      if (categoryToFilter === 'single') {
+        enabledPool = allDishes.filter(d => d.enabled && hasMealType(d, 'breakfast') && d.category === 'single');
+        if (enabledPool.length === 0) {
+          enabledPool = allDishes.filter(d => d.enabled && hasMealType(d, 'breakfast'));
+        }
+      } else {
+        enabledPool = allDishes.filter(d => d.category === categoryToFilter && d.enabled && hasMealType(d, actualMealKey));
+      }
+
       if (enabledPool.length === 0) {
         return { changed: false, reason: 'no_enabled_dishes', newDish: null, weekMenu, days: weekMenu.days, weekId: weekMenu.weekId };
       }
@@ -464,31 +712,47 @@
         return { changed: false, reason: 'no_alternative', newDish: null, weekMenu, days: weekMenu.days, weekId: weekMenu.weekId };
       }
 
-      // Dishes of this slot's category used in OTHER days of current week
+      // Dishes used in other days of current week for this slot
       const currentWeekCounts = new Map();
       weekMenu.days.forEach((day, idx) => {
-        if (idx !== dayIndex && day[slotKey] && day[slotKey].id) {
-          const id = day[slotKey].id;
-          currentWeekCounts.set(id, (currentWeekCounts.get(id) || 0) + 1);
+        if (idx !== dayIndex) {
+          const item = (day.meals && day.meals[actualMealKey]) ? day.meals[actualMealKey][slotKey] : day[slotKey];
+          if (item && item.id) {
+            currentWeekCounts.set(item.id, (currentWeekCounts.get(item.id) || 0) + 1);
+          }
         }
       });
 
       // Avoid previous day dish AND next day dish
-      const prevDayDishId = dayIndex > 0 && weekMenu.days[dayIndex - 1][slotKey] ? weekMenu.days[dayIndex - 1][slotKey].id : null;
-      const nextDayDishId = dayIndex < weekMenu.days.length - 1 && weekMenu.days[dayIndex + 1][slotKey] ? weekMenu.days[dayIndex + 1][slotKey].id : null;
+      const getAdjacentDishId = (idx) => {
+        if (idx < 0 || idx >= weekMenu.days.length) return null;
+        const d = weekMenu.days[idx];
+        const m = (d.meals && d.meals[actualMealKey]) ? d.meals[actualMealKey][slotKey] : d[slotKey];
+        return m ? m.id : null;
+      };
 
-      const newDish = this.selectDish(slotKey, allDishes, currentWeekCounts, new Set(), excludeDishId, prevDayDishId, nextDayDishId);
+      const prevDayDishId = getAdjacentDishId(dayIndex - 1);
+      const nextDayDishId = getAdjacentDishId(dayIndex + 1);
+
+      const newDish = this.selectDish(categoryToFilter, allDishes, currentWeekCounts, new Set(), excludeDishId, prevDayDishId, nextDayDishId, actualMealKey);
 
       if (!newDish || (currentDish && newDish.id === currentDish.id)) {
         return { changed: false, reason: 'no_alternative', newDish: null, weekMenu, days: weekMenu.days, weekId: weekMenu.weekId };
       }
 
-      currentDay[slotKey] = {
+      const dishObj = {
         id: newDish.id,
         name: newDish.name,
-        category: slotKey,
+        category: newDish.category || slotKey,
         manual: false
       };
+
+      if (targetMeal) {
+        targetMeal[slotKey] = dishObj;
+      }
+      if (actualMealKey === 'dinner') {
+        currentDay[slotKey] = dishObj;
+      }
 
       weekMenu.updatedAt = Date.now();
       return {
@@ -506,18 +770,25 @@
     /**
      * Manually set a dish in a slot (locks it)
      */
-    setManualDish(weekMenu, dayIndex, slotKey, dish) {
+    setManualDish(weekMenu, dayIndex, slotKey, dish, mealKey = 'dinner') {
       if (!weekMenu || !weekMenu.days || !weekMenu.days[dayIndex]) return weekMenu;
 
-      if (!dish) {
-        weekMenu.days[dayIndex][slotKey] = null;
-      } else {
-        weekMenu.days[dayIndex][slotKey] = {
-          id: dish.id || ('manual_' + Date.now()),
-          name: dish.name,
-          category: slotKey,
-          manual: true
-        };
+      const day = weekMenu.days[dayIndex];
+      const actualMealKey = slotKey === 'single' ? 'breakfast' : (mealKey || 'dinner');
+      const targetMeal = day.meals ? day.meals[actualMealKey] : null;
+
+      const dishObj = dish ? {
+        id: dish.id || ('manual_' + Date.now()),
+        name: dish.name,
+        category: dish.category || slotKey,
+        manual: true
+      } : null;
+
+      if (targetMeal) {
+        targetMeal[slotKey] = dishObj;
+      }
+      if (actualMealKey === 'dinner') {
+        day[slotKey] = dishObj;
       }
 
       weekMenu.updatedAt = Date.now();
@@ -525,13 +796,28 @@
     }
 
     /**
-     * Toggle "isEaten" for a day
+     * Toggle "isEaten" for a specific meal in a day
      */
-    toggleEatenDay(weekMenu, dayIndex) {
+    toggleEatenMeal(weekMenu, dayIndex, mealKey = 'dinner') {
       if (!weekMenu || !weekMenu.days || !weekMenu.days[dayIndex]) return weekMenu;
-      weekMenu.days[dayIndex].isEaten = !weekMenu.days[dayIndex].isEaten;
+      const day = weekMenu.days[dayIndex];
+      if (day.meals && day.meals[mealKey]) {
+        day.meals[mealKey].isEaten = !day.meals[mealKey].isEaten;
+        if (mealKey === 'dinner') {
+          day.isEaten = day.meals.dinner.isEaten;
+        }
+      } else {
+        day.isEaten = !day.isEaten;
+      }
       weekMenu.updatedAt = Date.now();
       return weekMenu;
+    }
+
+    /**
+     * Toggle "isEaten" for a day (legacy shortcut, toggles dinner)
+     */
+    toggleEatenDay(weekMenu, dayIndex) {
+      return this.toggleEatenMeal(weekMenu, dayIndex, 'dinner');
     }
 
     /**
@@ -573,13 +859,18 @@
     updateMealAttendance(weekMenu, dayIndex, mealKey, memberIds, manualOverride = true) {
       if (!weekMenu || !weekMenu.days || !weekMenu.days[dayIndex]) return weekMenu;
       const day = weekMenu.days[dayIndex];
-      if (!day.attendance) {
-        day.attendance = this.buildDefaultDayAttendance(dayIndex, []);
-      }
-      day.attendance[mealKey] = {
+      const newAttendance = {
         memberIds: Array.isArray(memberIds) ? [...memberIds] : [],
         manualOverride: typeof manualOverride === 'boolean' ? manualOverride : true
       };
+
+      if (day.meals && day.meals[mealKey]) {
+        day.meals[mealKey].attendance = newAttendance;
+      }
+      if (!day.attendance) {
+        day.attendance = this.buildDefaultDayAttendance(dayIndex, []);
+      }
+      day.attendance[mealKey] = newAttendance;
       weekMenu.updatedAt = Date.now();
       return weekMenu;
     }

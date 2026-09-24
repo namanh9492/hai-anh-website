@@ -1,5 +1,7 @@
 /**
- * MenuPage Controller - Weekly Menu and Daily Meal Planner
+ * MenuPage Controller - Weekly Menu and Daily Meal Planner (Phase 2)
+ * Full 3-meal support (Sáng, Trưa, Tối), attendance display, meal-level eaten toggles,
+ * "Lên thực đơn tuần sau" button, and responsive day cards.
  */
 (function(window) {
   'use strict';
@@ -16,6 +18,7 @@
   const btnThisWeek = document.getElementById('btn-this-week');
   const btnNextWeek = document.getElementById('btn-next-week');
   const btnGenerateMenu = document.getElementById('btn-generate-menu');
+  const btnGenerateNextWeek = document.getElementById('btn-generate-next-week');
 
   // Manual Edit Modal Elements
   const manualModal = document.getElementById('manual-dish-modal');
@@ -26,7 +29,8 @@
   const btnCloseManual = document.getElementById('btn-close-manual');
   const btnCancelManual = document.getElementById('btn-cancel-manual');
 
-  let currentEditingContext = null; // { dayIndex, slotKey }
+  let currentEditingContext = null; // { dayIndex, slotKey, mealKey }
+  let currentAttendanceContext = null; // { dayIndex, mealKey }
 
   /**
    * Initialize Menu Page
@@ -64,6 +68,10 @@
 
     if (btnGenerateMenu) {
       btnGenerateMenu.addEventListener('click', handleGenerateMenuClick);
+    }
+
+    if (btnGenerateNextWeek) {
+      btnGenerateNextWeek.addEventListener('click', handleGenerateNextWeekClick);
     }
 
     // Modal controls
@@ -187,7 +195,7 @@
   }
 
   /**
-   * Render the top "Hôm nay ăn gì?" banner
+   * Render the top "Hôm nay ăn gì?" banner with 3 meals
    */
   function renderTodayHero() {
     if (!heroTodayContainer) return;
@@ -197,8 +205,6 @@
 
     // Look for today's entry in currently displayed menu
     let todayDay = null;
-    let dayLabel = '';
-
     if (displayedWeekMenu && Array.isArray(displayedWeekMenu.days)) {
       todayDay = displayedWeekMenu.days.find(d => d.date === todayISO);
     }
@@ -241,61 +247,120 @@
       return;
     }
 
-    const mainName = todayDay.main ? window.AppUtils.escapeHtml(todayDay.main.name) : 'Chưa chọn';
-    const vegName = todayDay.vegetable ? window.AppUtils.escapeHtml(todayDay.vegetable.name) : 'Chưa chọn';
-    const soupName = todayDay.soup ? window.AppUtils.escapeHtml(todayDay.soup.name) : 'Chưa chọn';
-    const sideName = todayDay.side ? window.AppUtils.escapeHtml(todayDay.side.name) : null;
+    const currentHour = todayDate.getHours();
+    // Highlight meal based on time of day
+    let activeMeal = 'dinner';
+    if (currentHour < 10) activeMeal = 'breakfast';
+    else if (currentHour < 14) activeMeal = 'lunch';
 
-    const eatenBadge = todayDay.isEaten 
-      ? `<span class="badge badge-enabled" style="font-size: 0.8rem;"><i data-lucide="check"></i> Đã ăn xong</span>`
-      : `<span class="badge" style="background: #F1F5F9; color: var(--muted-foreground); font-size: 0.8rem;">Chưa ăn</span>`;
+    const allMembers = window.StorageManager.getMembers();
+    const meals = todayDay.meals || {
+      breakfast: { single: null, attendance: { memberIds: [] }, isEaten: false },
+      lunch: { main: null, vegetable: null, soup: null, side: null, attendance: { memberIds: [] }, isEaten: false },
+      dinner: { main: todayDay.main, vegetable: todayDay.vegetable, soup: todayDay.soup, side: todayDay.side, attendance: todayDay.attendance?.dinner || { memberIds: [] }, isEaten: todayDay.isEaten }
+    };
+
+    // Helper to format attendees
+    const getAttendeeText = (mealObj) => {
+      const ids = mealObj?.attendance?.memberIds || [];
+      if (ids.length === 0) return 'Không ăn tại nhà';
+      return ids.map(id => {
+        const m = allMembers.find(mem => mem.id === id);
+        return m ? m.name : 'Thành viên cũ';
+      }).join(' · ');
+    };
+
+    // Breakfast summary
+    const bAttendees = getAttendeeText(meals.breakfast);
+    const bDish = meals.breakfast?.single ? window.AppUtils.escapeHtml(meals.breakfast.single.name) : (meals.breakfast?.attendance?.memberIds?.length === 0 ? 'Không ăn tại nhà' : 'Chưa có món');
+
+    // Lunch summary
+    const lAttendees = getAttendeeText(meals.lunch);
+    let lDishes = [];
+    if (meals.lunch?.main) lDishes.push(meals.lunch.main.name);
+    if (meals.lunch?.vegetable) lDishes.push(meals.lunch.vegetable.name);
+    if (meals.lunch?.soup) lDishes.push(meals.lunch.soup.name);
+    if (meals.lunch?.side) lDishes.push(meals.lunch.side.name);
+    const lDishText = lDishes.length > 0 ? window.AppUtils.escapeHtml(lDishes.join(' · ')) : (meals.lunch?.attendance?.memberIds?.length === 0 ? 'Không ăn tại nhà' : 'Chưa có món');
+
+    // Dinner summary
+    const dAttendees = getAttendeeText(meals.dinner);
+    let dDishes = [];
+    if (meals.dinner?.main) dDishes.push(meals.dinner.main.name);
+    if (meals.dinner?.vegetable) dDishes.push(meals.dinner.vegetable.name);
+    if (meals.dinner?.soup) dDishes.push(meals.dinner.soup.name);
+    if (meals.dinner?.side) dDishes.push(meals.dinner.side.name);
+    const dDishText = dDishes.length > 0 ? window.AppUtils.escapeHtml(dDishes.join(' · ')) : (meals.dinner?.attendance?.memberIds?.length === 0 ? 'Không ăn tại nhà' : 'Chưa có món');
 
     heroTodayContainer.innerHTML = `
       <div class="today-hero-card">
         <div class="today-hero-header">
           <div class="today-badge-group">
             <span class="today-tag">Hôm nay ăn gì?</span>
-            <span class="today-date-text">${todayDay.dayLabel} – ${window.MenuGenerator.formatDateVN(todayDate)}</span>
-            ${eatenBadge}
+            <span class="today-date-text">${window.AppUtils.escapeHtml(todayDay.dayLabel)} – ${window.MenuGenerator.formatDateVN(todayDate)}</span>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn ${todayDay.isEaten ? 'btn-outline' : 'btn-soft'} btn-sm" id="btn-hero-toggle-eaten">
-              <i data-lucide="${todayDay.isEaten ? 'rotate-ccw' : 'check'}"></i>
-              ${todayDay.isEaten ? 'Đánh dấu chưa ăn' : 'Đánh dấu đã ăn'}
-            </button>
-          </div>
+          <span style="font-size: 0.8rem; color: var(--muted-foreground);">3 bữa trong ngày</span>
         </div>
 
-        <div class="today-dishes-grid">
-          <div class="today-dish-pill">
-            <span class="today-dish-type" style="color: var(--category-main);">Món chính</span>
-            <span class="today-dish-name">${mainName}</span>
-          </div>
-          <div class="today-dish-pill">
-            <span class="today-dish-type" style="color: var(--category-veg);">Rau</span>
-            <span class="today-dish-name">${vegName}</span>
-          </div>
-          <div class="today-dish-pill">
-            <span class="today-dish-type" style="color: var(--category-soup);">Canh</span>
-            <span class="today-dish-name">${soupName}</span>
-          </div>
-          ${sideName ? `
-            <div class="today-dish-pill">
-              <span class="today-dish-type" style="color: var(--category-side);">Món phụ</span>
-              <span class="today-dish-name">${sideName}</span>
+        <div class="today-meals-trio">
+          <!-- Breakfast -->
+          <div class="today-meal-box ${activeMeal === 'breakfast' ? 'active-meal' : ''}">
+            <div class="today-meal-box-header">
+              <span class="meal-tag-pill meal-breakfast"><i data-lucide="sun"></i> Sáng</span>
+              ${meals.breakfast.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-          ` : ''}
-        </div>
+            <div class="today-meal-box-food">${bDish}</div>
+            <div class="today-meal-box-attendees"><i data-lucide="users"></i> ${window.AppUtils.escapeHtml(bAttendees)}</div>
+            ${meals.breakfast?.attendance?.memberIds?.length > 0 ? `
+              <button type="button" class="btn btn-xs ${meals.breakfast.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="breakfast" data-date="${todayISO}">
+                <i data-lucide="${meals.breakfast.isEaten ? 'rotate-ccw' : 'check'}"></i>
+                ${meals.breakfast.isEaten ? 'Chưa ăn' : 'Đã ăn'}
+              </button>
+            ` : ''}
+          </div>
 
-        <!-- Today Attendance Row -->
-        ${renderTodayHeroAttendance(todayDay)}
+          <!-- Lunch -->
+          <div class="today-meal-box ${activeMeal === 'lunch' ? 'active-meal' : ''}">
+            <div class="today-meal-box-header">
+              <span class="meal-tag-pill meal-lunch"><i data-lucide="sun-medium"></i> Trưa</span>
+              ${meals.lunch.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
+            </div>
+            <div class="today-meal-box-food">${lDishText}</div>
+            <div class="today-meal-box-attendees"><i data-lucide="users"></i> ${window.AppUtils.escapeHtml(lAttendees)}</div>
+            ${meals.lunch?.attendance?.memberIds?.length > 0 ? `
+              <button type="button" class="btn btn-xs ${meals.lunch.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="lunch" data-date="${todayISO}">
+                <i data-lucide="${meals.lunch.isEaten ? 'rotate-ccw' : 'check'}"></i>
+                ${meals.lunch.isEaten ? 'Chưa ăn' : 'Đã ăn'}
+              </button>
+            ` : ''}
+          </div>
+
+          <!-- Dinner -->
+          <div class="today-meal-box ${activeMeal === 'dinner' ? 'active-meal' : ''}">
+            <div class="today-meal-box-header">
+              <span class="meal-tag-pill meal-dinner"><i data-lucide="moon"></i> Tối</span>
+              ${meals.dinner.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
+            </div>
+            <div class="today-meal-box-food">${dDishText}</div>
+            <div class="today-meal-box-attendees"><i data-lucide="users"></i> ${window.AppUtils.escapeHtml(dAttendees)}</div>
+            ${meals.dinner?.attendance?.memberIds?.length > 0 ? `
+              <button type="button" class="btn btn-xs ${meals.dinner.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="dinner" data-date="${todayISO}">
+                <i data-lucide="${meals.dinner.isEaten ? 'rotate-ccw' : 'check'}"></i>
+                ${meals.dinner.isEaten ? 'Chưa ăn' : 'Đã ăn'}
+              </button>
+            ` : ''}
+          </div>
+        </div>
       </div>
     `;
 
-    const toggleBtn = document.getElementById('btn-hero-toggle-eaten');
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
-        const realMonday = window.MenuGenerator.getMonday(todayDate);
+    // Bind hero toggles
+    const heroToggles = heroTodayContainer.querySelectorAll('.btn-hero-toggle-meal');
+    heroToggles.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mealKey = btn.dataset.meal;
+        const targetDate = btn.dataset.date;
+        const realMonday = window.MenuGenerator.getMonday(new Date(targetDate + 'T00:00:00'));
         const realWeekId = window.MenuGenerator.getWeekId(realMonday);
         let menuToUpdate = displayedWeekMenu;
         if (!displayedWeekMenu || displayedWeekMenu.weekId !== realWeekId) {
@@ -303,23 +368,33 @@
         }
 
         if (menuToUpdate && Array.isArray(menuToUpdate.days)) {
-          const idx = menuToUpdate.days.findIndex(d => d.date === todayISO);
+          const idx = menuToUpdate.days.findIndex(d => d.date === targetDate);
           if (idx !== -1) {
-            window.MenuGenerator.toggleEatenDay(menuToUpdate, idx);
+            window.MenuGenerator.toggleEatenMeal(menuToUpdate, idx, mealKey);
             window.StorageManager.saveMenuForWeek(menuToUpdate.weekId, menuToUpdate);
             window.StorageManager.syncDishLastUsedAtFromMenus();
             loadWeek(currentMonday);
-            window.AppUtils.showToast(menuToUpdate.days[idx].isEaten ? 'Đã đánh dấu bữa hôm nay là đã ăn!' : 'Đã chuyển thành chưa ăn!', 'success');
+            const isNowEaten = menuToUpdate.days[idx].meals[mealKey]?.isEaten;
+            window.AppUtils.showToast(isNowEaten ? `Đã đánh dấu bữa ${getMealLabelVN(mealKey).toLowerCase()} là đã ăn!` : `Đã chuyển bữa ${getMealLabelVN(mealKey).toLowerCase()} thành chưa ăn!`, 'success');
           }
         }
       });
-    }
+    });
 
     window.AppUtils.initIcons();
   }
 
   /**
-   * Render the 7-day grid
+   * Helper to get meal Vietnamese label
+   */
+  function getMealLabelVN(mealKey) {
+    if (mealKey === 'breakfast') return 'Sáng';
+    if (mealKey === 'lunch') return 'Trưa';
+    return 'Tối';
+  }
+
+  /**
+   * Render the 7-day grid with 3 meals per day
    */
   function renderWeekGrid() {
     if (!weekGrid) return;
@@ -333,11 +408,13 @@
             </div>
             <h3 class="empty-state-title">Chưa có thực đơn cho tuần này</h3>
             <p class="empty-state-desc">
-              Nhấn nút "Lên thực đơn tuần" bên trên để hệ thống tự động sắp xếp món ăn ngon, đa dạng và cân đối dinh dưỡng.
+              Nhấn nút "Lên thực đơn tuần này" hoặc "Lên thực đơn tuần sau" để tự động sắp xếp bữa sáng, trưa, tối theo khẩu phần gia đình.
             </p>
-            <button type="button" class="btn btn-primary" id="btn-empty-generate">
-              <i data-lucide="sparkles"></i> Lên thực đơn tuần này
-            </button>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+              <button type="button" class="btn btn-primary" id="btn-empty-generate">
+                <i data-lucide="sparkles"></i> Lên thực đơn tuần này
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -351,16 +428,21 @@
     }
 
     const todayISO = window.MenuGenerator.formatDateISO(new Date());
+    const allMembers = window.StorageManager.getMembers();
 
     let html = '';
-    displayedWeekMenu.days.forEach((day, index) => {
+    displayedWeekMenu.days.forEach((day, dayIndex) => {
       const isToday = day.date === todayISO;
-      const isEaten = !!day.isEaten;
       const dateParts = day.date.split('-');
       const dateFormatted = `${dateParts[2]}/${dateParts[1]}`;
+      const meals = day.meals || {
+        breakfast: { single: null, attendance: { memberIds: [] }, isEaten: false },
+        lunch: { main: null, vegetable: null, soup: null, side: null, attendance: { memberIds: [] }, isEaten: false },
+        dinner: { main: day.main, vegetable: day.vegetable, soup: day.soup, side: day.side, attendance: day.attendance?.dinner || { memberIds: [] }, isEaten: !!day.isEaten }
+      };
 
       html += `
-        <div class="day-card ${isToday ? 'is-today' : ''} ${isEaten ? 'is-eaten' : ''}" data-day-index="${index}">
+        <div class="day-card ${isToday ? 'is-today' : ''}" data-day-index="${dayIndex}">
           <!-- Day Header -->
           <div class="day-card-header">
             <div class="day-name-block">
@@ -369,48 +451,148 @@
             </div>
             <div>
               ${isToday ? `<span class="day-status-pill today">Hôm nay</span>` : ''}
-              ${isEaten ? `<span class="day-status-pill eaten">Đã ăn</span>` : ''}
             </div>
           </div>
 
-          <!-- Slots List -->
-          <div class="day-slots-list">
-            <!-- 1. Main Dish -->
-            ${renderSlotItem(index, 'main', 'Món chính', day.main)}
+          <!-- 3 Meals Container -->
+          <div class="day-meals-container">
+            <!-- 1. BỮA SÁNG -->
+            ${renderMealSection(dayIndex, 'breakfast', 'Sáng', meals.breakfast, allMembers)}
 
-            <!-- 2. Vegetable -->
-            ${renderSlotItem(index, 'vegetable', 'Rau', day.vegetable)}
+            <!-- 2. BỮA TRƯA -->
+            ${renderMealSection(dayIndex, 'lunch', 'Trưa', meals.lunch, allMembers)}
 
-            <!-- 3. Soup -->
-            ${renderSlotItem(index, 'soup', 'Canh', day.soup)}
-
-            <!-- 4. Side Dish (Optional) -->
-            ${renderSlotItem(index, 'side', 'Món phụ', day.side, true)}
-          </div>
-
-          <!-- Attendance Section (Dinner) -->
-          ${renderDayAttendance(index, day)}
-
-          <!-- Day Footer -->
-          <div class="day-card-footer">
-            <label class="eaten-toggle-label">
-              <input type="checkbox" class="toggle-eaten-checkbox" data-day-index="${index}" ${isEaten ? 'checked' : ''}>
-              <span>${isEaten ? 'Đã ăn' : 'Chưa ăn'}</span>
-            </label>
+            <!-- 3. BỮA TỐI -->
+            ${renderMealSection(dayIndex, 'dinner', 'Tối', meals.dinner, allMembers)}
           </div>
         </div>
       `;
     });
 
     weekGrid.innerHTML = html;
-    bindSlotActionEvents();
+    bindMealActionEvents();
     window.AppUtils.initIcons();
   }
 
   /**
-   * Helper to render one meal slot item
+   * Render one of the 3 meal sections inside a day card
    */
-  function renderSlotItem(dayIndex, slotKey, slotLabel, dish, isOptional = false) {
+  function renderMealSection(dayIndex, mealKey, mealLabel, mealObj, allMembers) {
+    const isEaten = !!mealObj?.isEaten;
+    const memberIds = mealObj?.attendance?.memberIds || [];
+    const isOverride = !!mealObj?.attendance?.manualOverride;
+    const hasAttendees = memberIds.length > 0;
+
+    // Build attendees display
+    let attendeesHtml = '';
+    if (!hasAttendees) {
+      attendeesHtml = `<span class="meal-no-attendance-tag"><i data-lucide="home"></i> Không ăn tại nhà</span>`;
+    } else {
+      const names = memberIds.map(id => {
+        const m = allMembers.find(mem => mem.id === id);
+        return m ? window.AppUtils.escapeHtml(m.name) : 'Thành viên cũ';
+      }).join(' · ');
+      attendeesHtml = `
+        <div class="meal-attendees-chips">
+          <i data-lucide="users"></i>
+          <span class="meal-attendees-text" title="${names}">Người ăn: <strong>${names}</strong></span>
+          ${isOverride ? `<span class="badge-attendance-override" title="Chỉnh riêng so với lịch mặc định">Chỉnh riêng</span>` : ''}
+        </div>
+      `;
+    }
+
+    // Icon & class per meal
+    let iconName = 'sun';
+    let pillClass = 'meal-breakfast';
+    if (mealKey === 'lunch') {
+      iconName = 'sun-medium';
+      pillClass = 'meal-lunch';
+    } else if (mealKey === 'dinner') {
+      iconName = 'moon';
+      pillClass = 'meal-dinner';
+    }
+
+    // Dish content
+    let foodHtml = '';
+    if (!hasAttendees) {
+      foodHtml = `
+        <div class="meal-empty-notice">
+          <span>Không ăn tại nhà</span>
+        </div>
+      `;
+    } else if (mealKey === 'breakfast') {
+      // Single dish breakfast
+      const dish = mealObj?.single;
+      const isManual = !!dish?.manual;
+      foodHtml = `
+        <div class="meal-single-dish-row ${isManual ? 'is-manual' : ''}">
+          <div class="meal-dish-name">
+            ${dish && dish.name ? window.AppUtils.escapeHtml(dish.name) : '<span class="dish-slot-empty">Chưa có món</span>'}
+            ${isManual ? `<i data-lucide="lock" style="width: 12px; height: 12px; color: #8B5CF6;" title="Đã khóa món"></i>` : ''}
+          </div>
+          <div class="meal-actions-group">
+            <button type="button" class="btn btn-ghost btn-xs btn-swap-meal-slot" data-day="${dayIndex}" data-meal="breakfast" data-slot="single" title="Đổi món ăn sáng khác">
+              <i data-lucide="refresh-cw"></i> <span>Đổi</span>
+            </button>
+            <button type="button" class="btn btn-ghost btn-xs btn-edit-meal-slot" data-day="${dayIndex}" data-meal="breakfast" data-slot="single" title="Sửa thủ công">
+              <i data-lucide="pencil"></i> <span>Sửa</span>
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      // Lunch / Dinner family slots
+      foodHtml = `
+        <div class="meal-family-slots">
+          ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
+          ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
+          ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
+          ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="meal-section meal-${mealKey} ${isEaten ? 'is-eaten' : ''}">
+        <div class="meal-section-header">
+          <div class="meal-header-left">
+            <span class="meal-tag-pill ${pillClass}">
+              <i data-lucide="${iconName}"></i> ${mealLabel}
+            </span>
+            ${isEaten ? `<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>` : ''}
+          </div>
+          <div class="meal-header-right">
+            <button type="button" class="btn-edit-attendance" data-day="${dayIndex}" data-meal="${mealKey}" title="Chỉnh người ăn bữa ${mealLabel.toLowerCase()}">
+              <i data-lucide="users"></i>
+              <span>Chỉnh</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="meal-attendees-bar">
+          ${attendeesHtml}
+        </div>
+
+        <div class="meal-food-body">
+          ${foodHtml}
+        </div>
+
+        ${hasAttendees ? `
+          <div class="meal-section-footer">
+            <label class="meal-eaten-toggle">
+              <input type="checkbox" class="toggle-meal-eaten-checkbox" data-day="${dayIndex}" data-meal="${mealKey}" ${isEaten ? 'checked' : ''}>
+              <span>${isEaten ? 'Đã ăn xong' : 'Đánh dấu đã ăn'}</span>
+            </label>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  /**
+   * Helper to render one family dish slot row for lunch/dinner
+   */
+  function renderFamilyDishRow(dayIndex, mealKey, slotKey, slotLabel, dish, isOptional = false) {
     const slotCategoryInfo = window.AppUtils.DISH_CATEGORIES[slotKey] || { slotClass: 'main' };
     const hasDish = dish && dish.name;
     const isManual = dish && dish.manual;
@@ -418,63 +600,60 @@
     if (!hasDish) {
       if (isOptional) {
         return `
-          <div class="dish-slot-item" style="border-style: dashed; background: transparent; padding: 6px 10px;">
-            <div class="dish-slot-header" style="margin-bottom: 0;">
-              <span class="slot-type-label ${slotCategoryInfo.slotClass}">${slotLabel}</span>
-              <button type="button" class="btn btn-ghost btn-xs btn-add-side" data-day="${dayIndex}" data-slot="${slotKey}" title="Thêm món phụ">
-                <i data-lucide="plus"></i> Thêm
-              </button>
-            </div>
+          <div class="family-dish-row optional-row">
+            <span class="slot-type-mini ${slotCategoryInfo.slotClass}">${slotLabel}</span>
+            <button type="button" class="btn btn-ghost btn-xs btn-add-side" data-day="${dayIndex}" data-meal="${mealKey}" data-slot="${slotKey}" title="Thêm món phụ">
+              <i data-lucide="plus"></i> Thêm
+            </button>
           </div>
         `;
       }
       return `
-        <div class="dish-slot-item" style="border-style: dashed;">
-          <div class="dish-slot-header">
-            <span class="slot-type-label ${slotCategoryInfo.slotClass}">${slotLabel}</span>
-            <button type="button" class="slot-action-btn btn-swap-slot" data-day="${dayIndex}" data-slot="${slotKey}" title="Chọn món">
-              <i data-lucide="plus"></i>
-            </button>
-          </div>
-          <div class="dish-slot-empty">Chưa có món</div>
+        <div class="family-dish-row empty-row">
+          <span class="slot-type-mini ${slotCategoryInfo.slotClass}">${slotLabel}</span>
+          <span class="dish-slot-empty">Chưa có món</span>
+          <button type="button" class="btn btn-ghost btn-xs btn-swap-meal-slot" data-day="${dayIndex}" data-meal="${mealKey}" data-slot="${slotKey}" title="Chọn món">
+            <i data-lucide="plus"></i>
+          </button>
         </div>
       `;
     }
 
     return `
-      <div class="dish-slot-item ${isManual ? 'is-manual' : ''}">
-        <div class="dish-slot-header">
-          <span class="slot-type-label ${slotCategoryInfo.slotClass}">
-            ${slotLabel}
-            ${isManual ? `<i data-lucide="lock" style="width: 10px; height: 10px; color: #8B5CF6;" title="Đã khóa / Sửa thủ công"></i>` : ''}
-          </span>
-          <div class="dish-slot-actions">
-            <button type="button" class="slot-action-btn btn-swap-slot" data-day="${dayIndex}" data-slot="${slotKey}" title="Đổi món ngẫu nhiên khác">
-              <i data-lucide="refresh-cw"></i>
-            </button>
-            <button type="button" class="slot-action-btn btn-edit-slot" data-day="${dayIndex}" data-slot="${slotKey}" title="Sửa thủ công / Khóa món">
-              <i data-lucide="pencil"></i>
-            </button>
-            <button type="button" class="slot-action-btn delete btn-delete-slot" data-day="${dayIndex}" data-slot="${slotKey}" title="Xóa món khỏi ngày">
+      <div class="family-dish-row ${isManual ? 'is-manual' : ''}">
+        <span class="slot-type-mini ${slotCategoryInfo.slotClass}">
+          ${slotLabel}
+          ${isManual ? `<i data-lucide="lock" style="width: 10px; height: 10px; color: #8B5CF6;" title="Đã khóa món"></i>` : ''}
+        </span>
+        <span class="family-dish-name" title="${window.AppUtils.escapeHtml(dish.name)}">${window.AppUtils.escapeHtml(dish.name)}</span>
+        <div class="family-dish-actions">
+          <button type="button" class="slot-action-btn btn-swap-meal-slot" data-day="${dayIndex}" data-meal="${mealKey}" data-slot="${slotKey}" title="Đổi món ngẫu nhiên">
+            <i data-lucide="refresh-cw"></i>
+          </button>
+          <button type="button" class="slot-action-btn btn-edit-meal-slot" data-day="${dayIndex}" data-meal="${mealKey}" data-slot="${slotKey}" title="Sửa / Khóa món">
+            <i data-lucide="pencil"></i>
+          </button>
+          ${isOptional ? `
+            <button type="button" class="slot-action-btn delete btn-delete-meal-slot" data-day="${dayIndex}" data-meal="${mealKey}" data-slot="${slotKey}" title="Xóa món phụ">
               <i data-lucide="trash-2"></i>
             </button>
-          </div>
+          ` : ''}
         </div>
-        <div class="dish-slot-name">${window.AppUtils.escapeHtml(dish.name)}</div>
       </div>
     `;
   }
 
   /**
-   * Bind events for slot buttons
+   * Bind event handlers for meal buttons & toggles
    */
-  function bindSlotActionEvents() {
-    // Checkbox eaten toggle
-    const eatenCheckboxes = weekGrid.querySelectorAll('.toggle-eaten-checkbox');
+  function bindMealActionEvents() {
+    // Eaten toggle checkboxes
+    const eatenCheckboxes = weekGrid.querySelectorAll('.toggle-meal-eaten-checkbox');
     eatenCheckboxes.forEach(cb => {
       cb.addEventListener('change', (e) => {
-        const dayIdx = parseInt(e.target.dataset.dayIndex, 10);
-        window.MenuGenerator.toggleEatenDay(displayedWeekMenu, dayIdx);
+        const dayIdx = parseInt(e.target.dataset.day, 10);
+        const mealKey = e.target.dataset.meal;
+        window.MenuGenerator.toggleEatenMeal(displayedWeekMenu, dayIdx, mealKey);
         window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
         window.StorageManager.syncDishLastUsedAtFromMenus();
         renderTodayHero();
@@ -483,26 +662,28 @@
     });
 
     // Swap single dish
-    const swapBtns = weekGrid.querySelectorAll('.btn-swap-slot');
+    const swapBtns = weekGrid.querySelectorAll('.btn-swap-meal-slot');
     swapBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const dayIdx = parseInt(btn.dataset.day, 10);
+        const mealKey = btn.dataset.meal;
         const slotKey = btn.dataset.slot;
         const allDishes = window.StorageManager.getDishes();
-        
-        const swapResult = window.MenuGenerator.swapSingleDish(displayedWeekMenu, dayIdx, slotKey, allDishes);
+
+        const swapResult = window.MenuGenerator.swapSingleDish(displayedWeekMenu, dayIdx, slotKey, allDishes, mealKey);
         if (!swapResult || !swapResult.changed) {
-          window.AppUtils.showToast('Không có món khác đang bật để đổi.', 'info');
+          window.AppUtils.showToast('Không có món khác phù hợp đang bật để đổi.', 'info');
           return;
         }
 
         window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
-        
-        if (displayedWeekMenu.days[dayIdx].isEaten) {
+
+        const targetMeal = displayedWeekMenu.days[dayIdx]?.meals?.[mealKey];
+        if (targetMeal && targetMeal.isEaten) {
           window.StorageManager.syncDishLastUsedAtFromMenus();
         }
 
-        const newDish = swapResult.newDish || displayedWeekMenu.days[dayIdx][slotKey];
+        const newDish = swapResult.newDish || (targetMeal ? targetMeal[slotKey] : null);
         renderTodayHero();
         renderWeekGrid();
         window.AppUtils.showToast(`Đã đổi sang: ${newDish ? newDish.name : 'Món mới'}`, 'success');
@@ -514,63 +695,71 @@
     addSideBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const dayIdx = parseInt(btn.dataset.day, 10);
+        const mealKey = btn.dataset.meal;
         const slotKey = btn.dataset.slot;
-        openManualModal(dayIdx, slotKey);
+        openManualModal(dayIdx, slotKey, mealKey);
       });
     });
 
     // Edit manual dish
-    const editBtns = weekGrid.querySelectorAll('.btn-edit-slot');
+    const editBtns = weekGrid.querySelectorAll('.btn-edit-meal-slot');
     editBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const dayIdx = parseInt(btn.dataset.day, 10);
+        const mealKey = btn.dataset.meal;
         const slotKey = btn.dataset.slot;
-        openManualModal(dayIdx, slotKey);
+        openManualModal(dayIdx, slotKey, mealKey);
       });
     });
 
     // Delete dish from slot
-    const deleteBtns = weekGrid.querySelectorAll('.btn-delete-slot');
+    const deleteBtns = weekGrid.querySelectorAll('.btn-delete-meal-slot');
     deleteBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const dayIdx = parseInt(btn.dataset.day, 10);
+        const mealKey = btn.dataset.meal;
         const slotKey = btn.dataset.slot;
-        
-        window.MenuGenerator.setManualDish(displayedWeekMenu, dayIdx, slotKey, null);
+
+        window.MenuGenerator.setManualDish(displayedWeekMenu, dayIdx, slotKey, null, mealKey);
         window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
 
-        if (displayedWeekMenu.days[dayIdx].isEaten) {
+        const targetMeal = displayedWeekMenu.days[dayIdx]?.meals?.[mealKey];
+        if (targetMeal && targetMeal.isEaten) {
           window.StorageManager.syncDishLastUsedAtFromMenus();
         }
 
         renderTodayHero();
         renderWeekGrid();
-        window.AppUtils.showToast('Đã xóa món khỏi ngày này', 'info');
+        window.AppUtils.showToast('Đã xóa món khỏi bữa này', 'info');
       });
     });
 
-    // Edit attendance button on each day card
+    // Edit attendance button on each meal
     const attendanceBtns = weekGrid.querySelectorAll('.btn-edit-attendance');
     attendanceBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const dayIdx = parseInt(btn.dataset.day, 10);
-        const mealKey = btn.dataset.meal || 'dinner';
+        const mealKey = btn.dataset.meal;
         openAttendanceModal(dayIdx, mealKey);
       });
     });
   }
 
   /**
-   * Handle Generate Menu Button Click
+   * Handle Generate Menu Button Click for Current Week
    */
   function handleGenerateMenuClick() {
     const weekId = window.MenuGenerator.getWeekId(currentMonday);
     const existingMenu = window.StorageManager.getMenuForWeek(weekId);
 
-    if (existingMenu && existingMenu.days && existingMenu.days.some(d => d.main || d.vegetable || d.soup)) {
+    const hasAnyFood = existingMenu && existingMenu.days && existingMenu.days.some(d => {
+      return d.main || d.meals?.breakfast?.single || d.meals?.lunch?.main || d.meals?.dinner?.main;
+    });
+
+    if (hasAnyFood) {
       window.AppUtils.showConfirmModal({
         title: 'Tạo lại thực đơn tuần?',
-        message: 'Tuần này đã có thực đơn. Bạn có chắc muốn tạo mới không? (Lưu ý: Các món bạn đã chỉnh sửa thủ công hoặc khóa sẽ được giữ nguyên).',
+        message: 'Tuần này đã có thực đơn. Bạn có chắc muốn tạo mới không? (Lưu ý: Các bữa đã ăn hoặc món đã sửa thủ công/khóa sẽ được giữ nguyên).',
         confirmText: 'Tạo lại thực đơn',
         confirmVariant: 'btn-primary',
         onConfirm: () => {
@@ -583,7 +772,61 @@
   }
 
   /**
-   * Core generator call
+   * Handle Generate Menu Button Click for NEXT Week
+   */
+  function handleGenerateNextWeekClick() {
+    const nextMonday = window.MenuGenerator.getNextMonday(new Date());
+    const nextWeekId = window.MenuGenerator.getWeekId(nextMonday);
+    const existingNextMenu = window.StorageManager.getMenuForWeek(nextWeekId);
+
+    const hasAnyFood = existingNextMenu && existingNextMenu.days && existingNextMenu.days.some(d => {
+      return d.main || d.meals?.breakfast?.single || d.meals?.lunch?.main || d.meals?.dinner?.main;
+    });
+
+    if (hasAnyFood) {
+      window.AppUtils.showConfirmModal({
+        title: 'Tuần sau đã có thực đơn',
+        message: 'Tuần sau đã có thực đơn. Bạn có muốn tạo lại các bữa chưa ăn/chưa khóa không?',
+        confirmText: 'Tạo lại thực đơn tuần sau',
+        confirmVariant: 'btn-primary',
+        onConfirm: () => {
+          generateAndSwitchToNextWeek(true);
+        }
+      });
+    } else {
+      generateAndSwitchToNextWeek(false);
+    }
+  }
+
+  /**
+   * Core generator call for Next Week
+   */
+  function generateAndSwitchToNextWeek(preserveExisting = true) {
+    const allDishes = window.StorageManager.getDishes();
+    const enabledDishes = allDishes.filter(d => d.enabled);
+
+    if (enabledDishes.length === 0) {
+      window.AppUtils.showToast('Chưa có món ăn nào được bật. Vui lòng vào Danh sách món để thêm hoặc bật món!', 'error');
+      return;
+    }
+
+    const nextMonday = window.MenuGenerator.getNextMonday(new Date());
+    const nextWeekId = window.MenuGenerator.getWeekId(nextMonday);
+    const thisMonday = window.MenuGenerator.getMonday(new Date());
+    const thisWeekMenu = window.StorageManager.getMenuForWeek(window.MenuGenerator.getWeekId(thisMonday));
+    const currentExisting = preserveExisting ? window.StorageManager.getMenuForWeek(nextWeekId) : null;
+
+    const newNextMenu = window.MenuGenerator.generateWeeklyMenu(nextMonday, allDishes, currentExisting, thisWeekMenu);
+    window.StorageManager.saveMenuForWeek(nextWeekId, newNextMenu);
+    window.StorageManager.syncDishLastUsedAtFromMenus();
+
+    currentMonday = nextMonday;
+    loadWeek(currentMonday);
+    window.AppUtils.showToast('Đã lên thực đơn cho tuần sau thành công!', 'success');
+  }
+
+  /**
+   * Core generator call for current week view
    */
   function generateNewMenuForCurrentWeek(preserveManual = true) {
     const allDishes = window.StorageManager.getDishes();
@@ -611,29 +854,44 @@
   }
 
   /**
-   * Open manual edit/lock modal
+   * Open manual edit/lock modal for a specific meal and slot
    */
-  function openManualModal(dayIndex, slotKey) {
-    currentEditingContext = { dayIndex, slotKey };
+  function openManualModal(dayIndex, slotKey, mealKey = 'dinner') {
+    currentEditingContext = { dayIndex, slotKey, mealKey };
     const day = displayedWeekMenu.days[dayIndex];
     const categoryInfo = window.AppUtils.DISH_CATEGORIES[slotKey] || { label: slotKey };
+    const mealLabel = getMealLabelVN(mealKey);
 
-    manualModalTitle.textContent = `Chọn món cho ${day.dayLabel} (${categoryInfo.label})`;
+    manualModalTitle.textContent = `Chọn món cho ${day.dayLabel} – Bữa ${mealLabel} (${categoryInfo.label})`;
 
-    // Populate dropdown with dishes of this category
     const allDishes = window.StorageManager.getDishes();
-    const categoryDishes = allDishes.filter(d => d.category === slotKey && d.enabled);
+    let suitableDishes = [];
+
+    const hasMealType = (d, mType) => {
+      if (!mType) return true;
+      if (Array.isArray(d.mealTypes) && d.mealTypes.length > 0) return d.mealTypes.includes(mType);
+      if (d.category === 'single') return mType === 'breakfast';
+      return mType === 'lunch' || mType === 'dinner';
+    };
+
+    if (slotKey === 'single') {
+      suitableDishes = allDishes.filter(d => d.enabled && hasMealType(d, 'breakfast'));
+    } else {
+      suitableDishes = allDishes.filter(d => d.category === slotKey && d.enabled && hasMealType(d, mealKey));
+    }
 
     let optionsHtml = '<option value="">-- Chọn món có sẵn trong danh sách --</option>';
-    categoryDishes.forEach(d => {
+    suitableDishes.forEach(d => {
       optionsHtml += `<option value="${d.id}">${window.AppUtils.escapeHtml(d.name)}</option>`;
     });
     manualSelectDish.innerHTML = optionsHtml;
 
     // Prefill if existing
-    const currentDish = day[slotKey];
+    const targetMeal = day.meals ? day.meals[mealKey] : null;
+    const currentDish = (targetMeal && targetMeal[slotKey]) ? targetMeal[slotKey] : (mealKey === 'dinner' ? day[slotKey] : null);
+
     if (currentDish) {
-      const match = categoryDishes.find(d => d.id === currentDish.id);
+      const match = suitableDishes.find(d => d.id === currentDish.id);
       if (match) {
         manualSelectDish.value = currentDish.id;
         manualCustomName.value = '';
@@ -659,7 +917,7 @@
     e.preventDefault();
     if (!currentEditingContext) return;
 
-    const { dayIndex, slotKey } = currentEditingContext;
+    const { dayIndex, slotKey, mealKey } = currentEditingContext;
     const selectedDishId = manualSelectDish.value;
     const customName = manualCustomName.value.trim();
 
@@ -679,115 +937,39 @@
       return;
     }
 
-    window.MenuGenerator.setManualDish(displayedWeekMenu, dayIndex, slotKey, dishObj);
+    window.MenuGenerator.setManualDish(displayedWeekMenu, dayIndex, slotKey, dishObj, mealKey);
     window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
 
-    if (displayedWeekMenu.days[dayIndex].isEaten) {
+    const targetMeal = displayedWeekMenu.days[dayIndex]?.meals?.[mealKey];
+    if (targetMeal && targetMeal.isEaten) {
       window.StorageManager.syncDishLastUsedAtFromMenus();
     }
 
     closeManualModal();
     renderTodayHero();
     renderWeekGrid();
-    window.AppUtils.showToast(`Đã khóa món "${dishObj.name}" cho ${displayedWeekMenu.days[dayIndex].dayLabel}!`, 'success');
+    window.AppUtils.showToast(`Đã khóa món "${dishObj.name}" cho bữa ${getMealLabelVN(mealKey).toLowerCase()} ${displayedWeekMenu.days[dayIndex].dayLabel}!`, 'success');
   }
 
   /**
-   * Render Today Attendance summary in Hero Card
-   */
-  function renderTodayHeroAttendance(todayDay) {
-    const allMembers = window.StorageManager.getMembers();
-    const dinnerIds = todayDay.attendance?.dinner?.memberIds || [];
-    const isOverride = !!todayDay.attendance?.dinner?.manualOverride;
-
-    let chips = '';
-    if (dinnerIds.length === 0) {
-      chips = `<span class="attendance-empty-text">Chưa có người ăn tối nay</span>`;
-    } else {
-      chips = dinnerIds.map(id => {
-        const m = allMembers.find(mem => mem.id === id);
-        const name = m ? m.name : 'Thành viên cũ';
-        return `<span class="attendance-chip"><i data-lucide="user"></i><span>${window.AppUtils.escapeHtml(name)}</span></span>`;
-      }).join('');
-    }
-
-    return `
-      <div class="today-attendance-row">
-        <div class="today-attendance-label">
-          <i data-lucide="users"></i>
-          <span>Người ăn tối nay:</span>
-          ${isOverride ? `<span class="badge-attendance-override">Chỉnh riêng</span>` : ''}
-        </div>
-        <div class="today-attendance-chips">
-          ${chips}
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * Render Attendance Section on Day Cards in Weekly Grid
-   */
-  function renderDayAttendance(dayIndex, day) {
-    const allMembers = window.StorageManager.getMembers();
-    const dinnerAttendance = day.attendance?.dinner || { memberIds: [], manualOverride: false };
-    const memberIds = dinnerAttendance.memberIds || [];
-    const isOverride = !!dinnerAttendance.manualOverride;
-
-    let chipsHtml = '';
-    if (memberIds.length === 0) {
-      chipsHtml = `<span class="attendance-empty-text">Chưa có người ăn</span>`;
-    } else {
-      chipsHtml = memberIds.map(id => {
-        const member = allMembers.find(m => m.id === id);
-        const name = member ? member.name : 'Thành viên cũ';
-        return `<span class="attendance-chip" title="${window.AppUtils.escapeHtml(name)}">
-          <i data-lucide="user"></i>
-          <span>${window.AppUtils.escapeHtml(name)}</span>
-        </span>`;
-      }).join('');
-    }
-
-    return `
-      <div class="day-attendance-block">
-        <div class="attendance-header">
-          <div class="attendance-label-group">
-            <span class="attendance-label">Người ăn:</span>
-            ${isOverride ? `<span class="badge-attendance-override" title="Đã chỉnh riêng cho bữa này">Chỉnh riêng</span>` : ''}
-          </div>
-          <button type="button" class="btn-edit-attendance" data-day="${dayIndex}" data-meal="dinner" title="Chỉnh người ăn cho bữa tối">
-            <i data-lucide="users"></i>
-            <span>Chỉnh</span>
-          </button>
-        </div>
-        <div class="attendance-chips-list">
-          ${chipsHtml}
-        </div>
-      </div>
-    `;
-  }
-
-  let currentAttendanceContext = null; // { dayIndex, mealKey }
-
-  /**
-   * Open attendance editing modal
+   * Open attendance editing modal for a specific meal
    */
   function openAttendanceModal(dayIndex, mealKey = 'dinner') {
     if (!displayedWeekMenu || !displayedWeekMenu.days || !displayedWeekMenu.days[dayIndex]) return;
     currentAttendanceContext = { dayIndex, mealKey };
 
     const day = displayedWeekMenu.days[dayIndex];
-    const mealLabel = mealKey === 'dinner' ? 'Bữa Tối' : (mealKey === 'lunch' ? 'Bữa Trưa' : 'Bữa Sáng');
+    const mealLabel = getMealLabelVN(mealKey);
     const modalTitle = document.getElementById('attendance-modal-title');
     const modalSubtitle = document.getElementById('attendance-modal-subtitle');
     const membersListEl = document.getElementById('attendance-modal-members-list');
     const overrideNotice = document.getElementById('attendance-override-notice');
     const attendanceModal = document.getElementById('attendance-modal');
 
-    if (modalTitle) modalTitle.textContent = `Người ăn – ${day.dayLabel} (${mealLabel})`;
+    if (modalTitle) modalTitle.textContent = `Người ăn – ${day.dayLabel} (Bữa ${mealLabel})`;
     if (modalSubtitle) modalSubtitle.textContent = `Ngày ${window.MenuGenerator.formatDateVN(new Date(day.date + 'T00:00:00'))}`;
 
-    const currentAttendance = day.attendance?.[mealKey] || { memberIds: [], manualOverride: false };
+    const currentAttendance = day.meals?.[mealKey]?.attendance || day.attendance?.[mealKey] || { memberIds: [], manualOverride: false };
     const currentMemberIds = Array.isArray(currentAttendance.memberIds) ? currentAttendance.memberIds : [];
     const isOverride = !!currentAttendance.manualOverride;
 
@@ -846,6 +1028,21 @@
     const selectedIds = Array.from(checkboxes).map(cb => cb.value);
 
     window.MenuGenerator.updateMealAttendance(displayedWeekMenu, dayIndex, mealKey, selectedIds, true);
+
+    // If attendees changed from 0 to >0 and meal currently has no dishes, auto-populate initial dishes
+    const day = displayedWeekMenu.days[dayIndex];
+    const targetMeal = day?.meals?.[mealKey];
+    if (selectedIds.length > 0 && targetMeal) {
+      const allDishes = window.StorageManager.getDishes();
+      if (mealKey === 'breakfast' && !targetMeal.single) {
+        window.MenuGenerator.swapSingleDish(displayedWeekMenu, dayIndex, 'single', allDishes, 'breakfast');
+      } else if ((mealKey === 'lunch' || mealKey === 'dinner') && (!targetMeal.main && !targetMeal.vegetable && !targetMeal.soup)) {
+        window.MenuGenerator.swapSingleDish(displayedWeekMenu, dayIndex, 'main', allDishes, mealKey);
+        window.MenuGenerator.swapSingleDish(displayedWeekMenu, dayIndex, 'vegetable', allDishes, mealKey);
+        window.MenuGenerator.swapSingleDish(displayedWeekMenu, dayIndex, 'soup', allDishes, mealKey);
+      }
+    }
+
     window.StorageManager.saveMenuForWeek(displayedWeekMenu.weekId, displayedWeekMenu);
 
     closeAttendanceModal();

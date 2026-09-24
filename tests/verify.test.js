@@ -48,6 +48,10 @@ eval(menuGenCode);
 const appCode = fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8');
 eval(appCode);
 
+// Load shopping.js
+const shoppingCode = fs.readFileSync(path.join(__dirname, '../js/shopping.js'), 'utf8');
+eval(shoppingCode);
+
 console.log('--- STARTING VERIFICATION TESTS ---');
 
 function assert(condition, message) {
@@ -682,5 +686,376 @@ assert(Array.isArray(migratedMenu.days[0].attendance.dinner.memberIds), 'Attenda
 assert(migratedMenu.days[0].attendance.dinner.manualOverride === false, 'Attendance manualOverride initialized to false');
 
 console.log('\n🎉 ALL SUITES 1-10 AND REGRESSION TESTS A-H PASSED PERFECTLY!\n');
+
+// ============================================================================
+// TEST SUITE 11: Phase 2 Mandatory Tests (Tests 1 to 16)
+// ============================================================================
+console.log('\n======================================================');
+console.log('=== TEST SUITE 11: PHASE 2 MANDATORY TESTS (1-16) ===');
+console.log('======================================================\n');
+
+// Test 1 – Dish Recipe Migration
+console.log('- Phase 2 Test 1: Dish Recipe Migration');
+const currentDishesInStorage = JSON.parse(localStorage.getItem('familyHome:v1:dishes') || '[]');
+currentDishesInStorage.push({
+  id: 'legacy_dish_v1_cakho',
+  name: 'Cá kho làng Vũ Đại',
+  category: 'main'
+  // Note: no baseServings, mealTypes, ingredients
+});
+localStorage.setItem('familyHome:v1:dishes', JSON.stringify(currentDishesInStorage));
+
+const dishesAfterMigrate = window.StorageManager.getDishes();
+const migratedCaKho = dishesAfterMigrate.find(d => d.id === 'legacy_dish_v1_cakho');
+assert(migratedCaKho !== undefined, 'Migrated dish exists in list');
+assert(migratedCaKho.baseServings === 4, 'Migrated dish baseServings normalized to 4');
+assert(Array.isArray(migratedCaKho.mealTypes), 'Migrated dish mealTypes is array');
+assert(migratedCaKho.mealTypes.includes('lunch') && migratedCaKho.mealTypes.includes('dinner'), 'Migrated dish mealTypes contains lunch and dinner');
+assert(Array.isArray(migratedCaKho.ingredients) && migratedCaKho.ingredients.length === 0, 'Migrated dish ingredients is []');
+
+// Test 2 – Recipe CRUD
+console.log('\n- Phase 2 Test 2: Recipe CRUD');
+const createdRecipeDish = window.StorageManager.addDish({
+  name: 'Cá kho tộ miền Tây',
+  category: 'main',
+  baseServings: 4,
+  mealTypes: ['lunch', 'dinner'],
+  ingredients: [
+    { id: 'ing_ca', name: 'Cá', quantity: 800, unit: 'g' },
+    { id: 'ing_mam', name: 'Nước mắm', quantity: 40, unit: 'ml' }
+  ]
+});
+assert(createdRecipeDish && createdRecipeDish.id, 'Recipe dish created successfully');
+assert(createdRecipeDish.baseServings === 4, 'Recipe dish has baseServings = 4');
+assert(createdRecipeDish.ingredients.length === 2, 'Recipe dish has 2 ingredients');
+
+const reloadedRecipeDish = window.StorageManager.getDishById(createdRecipeDish.id);
+assert(reloadedRecipeDish.ingredients[0].name === 'Cá' && reloadedRecipeDish.ingredients[0].quantity === 800, 'Reloaded dish has Cá 800g');
+assert(reloadedRecipeDish.ingredients[1].name === 'Nước mắm' && reloadedRecipeDish.ingredients[1].quantity === 40, 'Reloaded dish has Nước mắm 40ml');
+
+const updatedRecipeDish = window.StorageManager.updateDish(createdRecipeDish.id, {
+  ingredients: [
+    { id: 'ing_ca', name: 'Cá lóc', quantity: 850, unit: 'g' },
+    { id: 'ing_mam', name: 'Nước mắm', quantity: 40, unit: 'ml' },
+    { id: 'ing_hanh', name: 'Hành tím', quantity: 20, unit: 'g' }
+  ]
+});
+assert(updatedRecipeDish.ingredients.length === 3, 'Updated dish now has 3 ingredients');
+assert(updatedRecipeDish.ingredients[0].name === 'Cá lóc' && updatedRecipeDish.ingredients[0].quantity === 850, 'Updated ingredient name and quantity saved');
+
+// Test 3 – Portion Calculation
+console.log('\n- Phase 2 Test 3: Portion Calculation');
+const portionMembers = [
+  { id: 'pm_dad', name: 'Bố', portionSize: 'large' },     // 1.25
+  { id: 'pm_mom', name: 'Mẹ', portionSize: 'standard' },  // 1.0
+  { id: 'pm_kid', name: 'Bé', portionSize: 'small' }      // 0.5
+];
+const calculatedPortion = window.AppUtils.calculateMealServings(['pm_dad', 'pm_mom', 'pm_kid'], portionMembers);
+assert(Math.abs(calculatedPortion - 2.75) < 0.001, `Calculated meal servings = 2.75 (got: ${calculatedPortion})`);
+
+// Test 4 – Ingredient Scaling
+console.log('\n- Phase 2 Test 4: Ingredient Scaling');
+// Recipe: 4 servings, 800g cá -> meal: 2.75 servings -> 800 * 2.75 / 4 = 550g
+const dishToScale = {
+  baseServings: 4,
+  ingredients: [
+    { id: 'ing_ca', name: 'Cá', quantity: 800, unit: 'g' }
+  ]
+};
+const scaledResult = window.AppUtils.calculateDishIngredients(dishToScale, 2.75);
+assert(scaledResult.length === 1, 'Scaled result has 1 ingredient');
+assert(Math.abs(scaledResult[0].scaledQuantity - 550) < 0.001, `Cá scaled quantity = 550g (got: ${scaledResult[0].scaledQuantity})`);
+
+// Test 5 – Unit Conversion
+console.log('\n- Phase 2 Test 5: Unit Conversion');
+// 500 g + 1 kg = 1500 g -> display 1.5 kg
+const uG = window.AppUtils.convertToBaseUnit(500, 'g');
+const uKg = window.AppUtils.convertToBaseUnit(1, 'kg');
+const totalMassG = uG.baseQuantity + uKg.baseQuantity;
+assert(totalMassG === 1500, '500g + 1kg base sum is 1500g');
+const displayMass = window.AppUtils.formatIngredientDisplay(totalMassG, 'g');
+assert(displayMass.amount === 1.5 && displayMass.unit === 'kg', `1500g displayed as 1.5 kg (got: ${displayMass.amount} ${displayMass.unit})`);
+
+// 500 ml + 1 l = 1500 ml -> display 1.5 l
+const uMl = window.AppUtils.convertToBaseUnit(500, 'ml');
+const uL = window.AppUtils.convertToBaseUnit(1, 'l');
+const totalVolMl = uMl.baseQuantity + uL.baseQuantity;
+assert(totalVolMl === 1500, '500ml + 1l base sum is 1500ml');
+const displayVol = window.AppUtils.formatIngredientDisplay(totalVolMl, 'ml');
+assert(displayVol.amount === 1.5 && displayVol.unit === 'l', `1500ml displayed as 1.5 l (got: ${displayVol.amount} ${displayVol.unit})`);
+
+// Test 6 – Breakfast Generation
+console.log('\n- Phase 2 Test 6: Breakfast Generation');
+const breakfastDish = window.StorageManager.addDish({
+  name: 'Bún bò Huế sáng',
+  category: 'single',
+  mealTypes: ['breakfast'],
+  enabled: true
+});
+
+// Case A: Attendance > 0
+const weekMenuWithAtt = window.MenuGenerator.generateWeeklyMenu(new Date(2026, 8, 28), window.StorageManager.getDishes(), null, null);
+assert(weekMenuWithAtt.days[0].meals.breakfast !== undefined, 'Day has meals.breakfast object');
+if (weekMenuWithAtt.days[0].meals.breakfast.attendance.memberIds.length > 0) {
+  assert(weekMenuWithAtt.days[0].meals.breakfast.single !== null, 'Breakfast dish created when attendance > 0');
+  const pickedDish = window.StorageManager.getDishById(weekMenuWithAtt.days[0].meals.breakfast.single.id);
+  assert(pickedDish && (pickedDish.category === 'single' || pickedDish.mealTypes.includes('breakfast')), 'Generated dish has breakfast mealType');
+}
+
+// Case B: Attendance = 0 -> breakfast.single is null
+const weekMenuZeroAtt = JSON.parse(JSON.stringify(weekMenuWithAtt));
+window.MenuGenerator.updateMealAttendance(weekMenuZeroAtt, 0, 'breakfast', [], true);
+const regenZero = window.MenuGenerator.generateWeeklyMenu(new Date(2026, 8, 28), window.StorageManager.getDishes(), weekMenuZeroAtt, null);
+assert(regenZero.days[0].meals.breakfast.single === null, 'Breakfast has no dish when attendance = 0');
+
+// Test 7 – Lunch/Dinner Filter
+console.log('\n- Phase 2 Test 7: Lunch/Dinner Filter');
+const dinnerSpecialDish = window.StorageManager.addDish({
+  name: 'Lẩu cua đồng chỉ ăn tối',
+  category: 'main',
+  mealTypes: ['dinner'],
+  enabled: true
+});
+const lunchSpecialDish = window.StorageManager.addDish({
+  name: 'Bún đậu mắm tôm chỉ ăn trưa',
+  category: 'main',
+  mealTypes: ['lunch'],
+  enabled: true
+});
+
+for (let i = 0; i < 3; i++) {
+  const testFilterMenu = window.MenuGenerator.generateWeeklyMenu(new Date(2026, 9, 5 + i * 7), window.StorageManager.getDishes(), null, null);
+  testFilterMenu.days.forEach(d => {
+    if (d.meals.lunch.main) {
+      assert(d.meals.lunch.main.id !== dinnerSpecialDish.id, 'Lunch does not pick dinner-only dish');
+    }
+    if (d.meals.dinner.main) {
+      assert(d.meals.dinner.main.id !== lunchSpecialDish.id, 'Dinner does not pick lunch-only dish');
+    }
+  });
+}
+
+// Test 8 – Legacy Menu Migration
+console.log('\n- Phase 2 Test 8: Legacy Menu Migration');
+const v1LegacyWeek = {
+  weekId: '2026-06-01',
+  days: [
+    {
+      date: '2026-06-01',
+      dayLabel: 'Thứ Hai',
+      isEaten: true,
+      main: { id: 'v1_m1', name: 'Sườn xào chua ngọt', category: 'main', manual: true },
+      vegetable: { id: 'v1_v1', name: 'Rau bí xào', category: 'vegetable', manual: false },
+      soup: { id: 'v1_s1', name: 'Canh sườn chua', category: 'soup', manual: false },
+      side: null,
+      attendance: {
+        breakfast: { memberIds: [], manualOverride: false },
+        lunch: { memberIds: [], manualOverride: false },
+        dinner: { memberIds: ['v1_user_1'], manualOverride: true }
+      }
+    }
+  ]
+};
+window.StorageManager.saveMenuForWeek('2026-06-01', v1LegacyWeek);
+const reloadedV1 = window.StorageManager.getMenuForWeek('2026-06-01');
+
+assert(reloadedV1.days[0].meals !== undefined, 'Normalized legacy day has meals object');
+assert(reloadedV1.days[0].meals.dinner.main.id === 'v1_m1', 'meals.dinner.main.id preserved');
+assert(reloadedV1.days[0].meals.dinner.main.manual === true, 'meals.dinner.main manual flag preserved');
+assert(reloadedV1.days[0].meals.dinner.isEaten === true, 'meals.dinner.isEaten preserved');
+assert(reloadedV1.days[0].meals.dinner.attendance.memberIds.includes('v1_user_1'), 'meals.dinner attendance preserved');
+assert(reloadedV1.days[0].meals.dinner.attendance.manualOverride === true, 'meals.dinner attendance manualOverride preserved');
+
+// Test 9 – Meal-level Eaten Preservation
+console.log('\n- Phase 2 Test 9: Meal-level Eaten Preservation');
+const weekEatenPreserve = window.MenuGenerator.generateWeeklyMenu(new Date(2026, 8, 28), window.StorageManager.getDishes(), null, null);
+// Mark Monday dinner as eaten, Monday lunch as uneaten
+weekEatenPreserve.days[0].meals.dinner.isEaten = true;
+weekEatenPreserve.days[0].meals.lunch.isEaten = false;
+const originalDinnerMain = weekEatenPreserve.days[0].meals.dinner.main;
+
+const regenEaten = window.MenuGenerator.generateWeeklyMenu(new Date(2026, 8, 28), window.StorageManager.getDishes(), weekEatenPreserve, null);
+assert(regenEaten.days[0].meals.dinner.main.id === originalDinnerMain.id, 'Eaten dinner dish strictly preserved across regenerate');
+assert(regenEaten.days[0].meals.dinner.isEaten === true, 'Eaten dinner isEaten remains true');
+
+// Test 10 – lastUsedAt Across Meals
+console.log('\n- Phase 2 Test 10: lastUsedAt Across Meals');
+const bDishSync = window.StorageManager.addDish({ name: 'Cháo sườn sáng', category: 'single', mealTypes: ['breakfast'], enabled: true });
+const dDishSync = window.StorageManager.addDish({ name: 'Cá chép om dưa tối', category: 'main', mealTypes: ['dinner'], enabled: true });
+
+const syncWeekTest = {
+  weekId: '2026-09-07',
+  days: [
+    {
+      date: '2026-09-07', // Monday
+      meals: {
+        breakfast: { single: { id: bDishSync.id, name: bDishSync.name }, isEaten: true, attendance: { memberIds: ['u1'] } },
+        lunch: { main: null, isEaten: false, attendance: { memberIds: [] } },
+        dinner: { main: null, isEaten: false, attendance: { memberIds: [] } }
+      }
+    },
+    {
+      date: '2026-09-08', // Tuesday
+      meals: {
+        breakfast: { single: null, isEaten: false, attendance: { memberIds: [] } },
+        lunch: { main: null, isEaten: false, attendance: { memberIds: [] } },
+        dinner: { main: { id: dDishSync.id, name: dDishSync.name }, isEaten: true, attendance: { memberIds: ['u1'] } }
+      }
+    }
+  ]
+};
+window.StorageManager.saveMenuForWeek('2026-09-07', syncWeekTest);
+window.StorageManager.syncDishLastUsedAtFromMenus();
+
+const syncedB = window.StorageManager.getDishById(bDishSync.id);
+const syncedD = window.StorageManager.getDishById(dDishSync.id);
+const expectedMonTs = new Date('2026-09-07T00:00:00').getTime();
+const expectedTueTs = new Date('2026-09-08T00:00:00').getTime();
+assert(syncedB.lastUsedAt === expectedMonTs, `Breakfast dish lastUsedAt is Monday timestamp (got: ${syncedB.lastUsedAt})`);
+assert(syncedD.lastUsedAt === expectedTueTs, `Dinner dish lastUsedAt is Tuesday timestamp (got: ${syncedD.lastUsedAt})`);
+
+// Unmark breakfast and re-sync
+syncWeekTest.days[0].meals.breakfast.isEaten = false;
+window.StorageManager.saveMenuForWeek('2026-09-07', syncWeekTest);
+window.StorageManager.syncDishLastUsedAtFromMenus();
+const unmarkB = window.StorageManager.getDishById(bDishSync.id);
+assert(unmarkB.lastUsedAt === null, 'Unmarked breakfast dish lastUsedAt recalculated to null');
+
+// Test 11 – Shopping Aggregation
+console.log('\n- Phase 2 Test 11: Shopping Aggregation');
+const porkDishA = window.StorageManager.addDish({
+  name: 'Thịt rim tiêu',
+  category: 'main',
+  baseServings: 4,
+  mealTypes: ['lunch'],
+  enabled: true,
+  ingredients: [{ id: 'ing_pork_a', name: 'Thịt lợn', quantity: 500, unit: 'g' }]
+});
+const porkDishB = window.StorageManager.addDish({
+  name: 'Thịt kho củ cải',
+  category: 'main',
+  baseServings: 4,
+  mealTypes: ['dinner'],
+  enabled: true,
+  ingredients: [{ id: 'ing_pork_b', name: 'Thịt lợn', quantity: 750, unit: 'g' }]
+});
+
+// 4 standard members = 4 standard servings -> scale = 4 / 4 = 1.0
+const shoppingMembersTest = [
+  { id: 'sm_1', name: 'Thành viên 1', portionSize: 'standard' },
+  { id: 'sm_2', name: 'Thành viên 2', portionSize: 'standard' },
+  { id: 'sm_3', name: 'Thành viên 3', portionSize: 'standard' },
+  { id: 'sm_4', name: 'Thành viên 4', portionSize: 'standard' }
+];
+
+const testShopWeek = {
+  weekId: '2026-12-07',
+  days: [
+    {
+      date: '2026-12-07',
+      meals: {
+        lunch: { main: porkDishA, attendance: { memberIds: ['sm_1', 'sm_2', 'sm_3', 'sm_4'] } },
+        dinner: { main: porkDishB, attendance: { memberIds: ['sm_1', 'sm_2', 'sm_3', 'sm_4'] } }
+      }
+    }
+  ]
+};
+
+const shopAgg = window.ShoppingService.aggregateWeeklyIngredients(testShopWeek, window.StorageManager.getDishes(), shoppingMembersTest);
+const porkAggItem = shopAgg.items.find(i => i.canonicalName.toLowerCase() === 'thịt lợn');
+assert(porkAggItem !== undefined, 'Thịt lợn aggregated into shopping list');
+assert(porkAggItem.totalQuantity === 1250, `Aggregated total quantity is 1250g (got: ${porkAggItem.totalQuantity})`);
+assert(porkAggItem.displayAmount === 1.25 && porkAggItem.displayUnit === 'kg', `Display amount is 1.25 kg (got: ${porkAggItem.displayAmount} ${porkAggItem.displayUnit})`);
+
+// Test 12 – Shopping Ignores No Attendance
+console.log('\n- Phase 2 Test 12: Shopping Ignores No Attendance');
+const shopWeekNoAttendees = {
+  weekId: '2026-12-14',
+  days: [
+    {
+      date: '2026-12-14',
+      meals: {
+        lunch: { main: porkDishA, attendance: { memberIds: [] } }
+      }
+    }
+  ]
+};
+const resNoAtt = window.ShoppingService.aggregateWeeklyIngredients(shopWeekNoAttendees, window.StorageManager.getDishes(), shoppingMembersTest);
+assert(resNoAtt.items.length === 0, 'Shopping list excludes meals with 0 attendees');
+
+// Test 13 – Missing Recipe Warning
+console.log('\n- Phase 2 Test 13: Missing Recipe Warning');
+const emptyRecipeDish = window.StorageManager.addDish({
+  name: 'Món đặc biệt chưa ghi nguyên liệu',
+  category: 'main',
+  mealTypes: ['lunch'],
+  enabled: true,
+  ingredients: []
+});
+const shopWeekEmptyRecipe = {
+  weekId: '2026-12-21',
+  days: [
+    {
+      date: '2026-12-21',
+      meals: {
+        lunch: { main: emptyRecipeDish, attendance: { memberIds: ['sm_1'] } }
+      }
+    }
+  ]
+};
+const resMissing = window.ShoppingService.aggregateWeeklyIngredients(shopWeekEmptyRecipe, window.StorageManager.getDishes(), shoppingMembersTest);
+assert(resMissing.missingDishes.length > 0, 'Missing recipe list identifies dishes without recipe');
+assert(resMissing.missingDishes.some(d => d.name === 'Món đặc biệt chưa ghi nguyên liệu'), 'Correct dish name reported in missing recipes');
+
+// Test 14 – Shopping Check State
+console.log('\n- Phase 2 Test 14: Shopping Check State');
+const testWeekCheckKey = '2026-12-28';
+window.StorageManager.toggleShoppingCheck(testWeekCheckKey, 'thịt lợn|g');
+let loadedChecks = window.StorageManager.getShoppingChecks(testWeekCheckKey);
+assert(loadedChecks['thịt lợn|g'] === true, 'Shopping check marked as purchased');
+
+// Reload and verify persistence
+loadedChecks = window.StorageManager.getShoppingChecks(testWeekCheckKey);
+assert(loadedChecks['thịt lợn|g'] === true, 'Shopping check state persisted across reloads');
+
+// Toggle again to uncheck
+window.StorageManager.toggleShoppingCheck(testWeekCheckKey, 'thịt lợn|g');
+loadedChecks = window.StorageManager.getShoppingChecks(testWeekCheckKey);
+assert(loadedChecks['thịt lợn|g'] === false, 'Shopping check unmarks correctly');
+
+// Test 15 – Deleted Member in Shopping
+console.log('\n- Phase 2 Test 15: Deleted Member in Shopping');
+const shopWeekDeletedMember = {
+  weekId: '2027-01-04',
+  days: [
+    {
+      date: '2027-01-04',
+      meals: {
+        lunch: { main: porkDishA, attendance: { memberIds: ['unknown_deleted_member_id_999'] } }
+      }
+    }
+  ]
+};
+let shoppingDeletedSafe = false;
+try {
+  const resDel = window.ShoppingService.aggregateWeeklyIngredients(shopWeekDeletedMember, window.StorageManager.getDishes(), shoppingMembersTest);
+  assert(resDel !== null, 'Shopping aggregated without crash when attendance contains deleted member ID');
+  shoppingDeletedSafe = true;
+} catch (err) {
+  assert(false, `Shopping crashed on deleted member: ${err.message}`);
+}
+assert(shoppingDeletedSafe, 'Deleted member safely ignored in shopping calculation');
+
+// Test 16 – Week Boundary
+console.log('\n- Phase 2 Test 16: Week Boundary');
+// Thursday Dec 31, 2026 -> next Monday must be Jan 4, 2027
+const dec31Date = new Date(2026, 11, 31);
+const nextMonBoundary = window.MenuGenerator.getNextMonday(dec31Date);
+assert(nextMonBoundary.getFullYear() === 2027 && nextMonBoundary.getMonth() === 0 && nextMonBoundary.getDate() === 4, 'Next Monday across New Year boundary is Jan 4, 2027');
+const nextWeekIdBoundary = window.MenuGenerator.getWeekId(nextMonBoundary);
+assert(nextWeekIdBoundary === '2027-01-04', `Boundary weekId correctly formatted: ${nextWeekIdBoundary}`);
+
+console.log('\n🎉 ALL SUITES 1-11 AND ALL PHASE 2 TESTS PASSED 100% PERFECTLY!\n');
+
 
 

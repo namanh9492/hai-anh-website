@@ -10,37 +10,133 @@
     MENUS: 'familyHome:v1:menus',
     TIPS: 'familyHome:v1:tips',
     MEMBERS: 'familyHome:v1:members',
-    META: 'familyHome:v1:meta'
+    META: 'familyHome:v1:meta',
+    SHOPPING_CHECKS: 'familyHome:v1:shoppingChecks'
   };
 
   const SEED_DISHES = [
+    // Món ăn riêng (Single / Breakfast dishes)
+    {
+      id: 'dish_b1',
+      name: 'Phở bò gia truyền',
+      category: 'single',
+      baseServings: 4,
+      mealTypes: ['breakfast'],
+      ingredients: [
+        { id: 'ing_b1_1', name: 'Bánh phở', quantity: 600, unit: 'g' },
+        { id: 'ing_b1_2', name: 'Thịt bò', quantity: 400, unit: 'g' },
+        { id: 'ing_b1_3', name: 'Hành hoa', quantity: 50, unit: 'g' }
+      ],
+      note: 'Nước dùng ninh xương bò thơm quế hồi',
+      enabled: true,
+      createdAt: 1727100000000,
+      updatedAt: 1727100000000
+    },
+    {
+      id: 'dish_b2',
+      name: 'Bún thang Hà Nội',
+      category: 'single',
+      baseServings: 4,
+      mealTypes: ['breakfast', 'lunch'],
+      ingredients: [
+        { id: 'ing_b2_1', name: 'Bún tươi', quantity: 600, unit: 'g' },
+        { id: 'ing_b2_2', name: 'Thịt gà', quantity: 300, unit: 'g' },
+        { id: 'ing_b2_3', name: 'Trứng gà', quantity: 2, unit: 'quả' }
+      ],
+      note: 'Thịt gà xé phay, giò lụa thái chỉ, trứng tráng mỏng',
+      enabled: true,
+      createdAt: 1727100000000,
+      updatedAt: 1727100000000
+    },
+    {
+      id: 'dish_b3',
+      name: 'Bánh mì pate trứng ốp la',
+      category: 'single',
+      baseServings: 4,
+      mealTypes: ['breakfast'],
+      ingredients: [
+        { id: 'ing_b3_1', name: 'Bánh mì', quantity: 4, unit: 'cái' },
+        { id: 'ing_b3_2', name: 'Trứng gà', quantity: 4, unit: 'quả' },
+        { id: 'ing_b3_3', name: 'Dưa chuột', quantity: 2, unit: 'quả' }
+      ],
+      note: 'Ăn kèm dưa góp và sốt tiêu',
+      enabled: true,
+      createdAt: 1727100000000,
+      updatedAt: 1727100000000
+    },
+
     // Món chính (Main dishes)
-    { id: 'dish_m1', name: 'Thịt rang cháy cạnh', category: 'main', note: 'Thịt ba chỉ thái mỏng, rang thơm cùng hành lá', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_m2', name: 'Cá kho tộ', category: 'main', note: 'Kho riềng và thịt ba chỉ cho đậm vị', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_m3', name: 'Trứng rán thịt băm', category: 'main', note: 'Thêm ít mộc nhĩ và hành hoa', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_m4', name: 'Gà rang gừng', category: 'main', note: 'Thịt gà ta rang săn với gừng tươi và lá chanh', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_m5', name: 'Thịt kho trứng cút', category: 'main', note: 'Nước dừa thơm ngọt, nước màu caramen', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_m6', name: 'Cá rô phi rán giòn', category: 'main', note: 'Chấm nước mắm tỏi ớt gừng', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_m7', name: 'Bò xào cần tỏi', category: 'main', note: 'Xào lửa to nhanh tay cho thịt mềm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    {
+      id: 'dish_m1',
+      name: 'Thịt rang cháy cạnh',
+      category: 'main',
+      baseServings: 4,
+      mealTypes: ['lunch', 'dinner'],
+      ingredients: [
+        { id: 'ing_m1_1', name: 'Thịt ba chỉ', quantity: 500, unit: 'g' },
+        { id: 'ing_m1_2', name: 'Hành hoa', quantity: 30, unit: 'g' },
+        { id: 'ing_m1_3', name: 'Nước mắm', quantity: 25, unit: 'ml' }
+      ],
+      note: 'Thịt ba chỉ thái mỏng, rang thơm cùng hành lá',
+      enabled: true,
+      createdAt: 1727100000000,
+      updatedAt: 1727100000000
+    },
+    {
+      id: 'dish_m2',
+      name: 'Cá kho tộ',
+      category: 'main',
+      baseServings: 4,
+      mealTypes: ['lunch', 'dinner'],
+      ingredients: [
+        { id: 'ing_m2_1', name: 'Cá trắm', quantity: 800, unit: 'g' },
+        { id: 'ing_m2_2', name: 'Nước mắm', quantity: 40, unit: 'ml' },
+        { id: 'ing_m2_3', name: 'Hành củ', quantity: 20, unit: 'g' }
+      ],
+      note: 'Kho riềng và thịt ba chỉ cho đậm vị',
+      enabled: true,
+      createdAt: 1727100000000,
+      updatedAt: 1727100000000
+    },
+    {
+      id: 'dish_m3',
+      name: 'Trứng rán thịt băm',
+      category: 'main',
+      baseServings: 4,
+      mealTypes: ['breakfast', 'lunch', 'dinner'],
+      ingredients: [
+        { id: 'ing_m3_1', name: 'Trứng gà', quantity: 4, unit: 'quả' },
+        { id: 'ing_m3_2', name: 'Thịt nạc vai xay', quantity: 150, unit: 'g' },
+        { id: 'ing_m3_3', name: 'Hành hoa', quantity: 20, unit: 'g' }
+      ],
+      note: 'Thêm ít mộc nhĩ và hành hoa',
+      enabled: true,
+      createdAt: 1727100000000,
+      updatedAt: 1727100000000
+    },
+    { id: 'dish_m4', name: 'Gà rang gừng', category: 'main', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_m4_1', name: 'Thịt gà', quantity: 700, unit: 'g' }, { id: 'ing_m4_2', name: 'Gừng củ', quantity: 1, unit: 'củ' }], note: 'Thịt gà ta rang săn với gừng tươi và lá chanh', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_m5', name: 'Thịt kho trứng cút', category: 'main', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_m5_1', name: 'Thịt ba chỉ', quantity: 500, unit: 'g' }, { id: 'ing_m5_2', name: 'Trứng cút', quantity: 15, unit: 'quả' }], note: 'Nước dừa thơm ngọt, nước màu caramen', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_m6', name: 'Cá rô phi rán giòn', category: 'main', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_m6_1', name: 'Cá rô phi', quantity: 800, unit: 'g' }], note: 'Chấm nước mắm tỏi ớt gừng', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_m7', name: 'Bò xào cần tỏi', category: 'main', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_m7_1', name: 'Thịt bò', quantity: 400, unit: 'g' }, { id: 'ing_m7_2', name: 'Cần tây', quantity: 1, unit: 'bó' }], note: 'Xào lửa to nhanh tay cho thịt mềm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
 
     // Rau (Vegetables)
-    { id: 'dish_v1', name: 'Rau muống luộc', category: 'vegetable', note: 'Vắt chanh dầm sấu nước luộc', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_v2', name: 'Cải thìa xào tỏi', category: 'vegetable', note: 'Xào giòn với tỏi phi thơm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_v3', name: 'Su su luộc chấm muối vừng', category: 'vegetable', note: 'Thái lát luộc vừa chín tới', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_v4', name: 'Rau cải ngọt luộc', category: 'vegetable', note: 'Chấm nước mắm trứng luộc dầm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_v5', name: 'Đậu cô ve xào lòng mề', category: 'vegetable', note: 'Xào chín tới để giữ độ ngọt giòn', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_v1', name: 'Rau muống luộc', category: 'vegetable', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_v1_1', name: 'Rau muống', quantity: 1, unit: 'bó' }], note: 'Vắt chanh dầm sấu nước luộc', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_v2', name: 'Cải thìa xào tỏi', category: 'vegetable', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_v2_1', name: 'Cải thìa', quantity: 500, unit: 'g' }, { id: 'ing_v2_2', name: 'Tỏi', quantity: 1, unit: 'củ' }], note: 'Xào giòn với tỏi phi thơm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_v3', name: 'Su su luộc chấm muối vừng', category: 'vegetable', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_v3_1', name: 'Su su', quantity: 2, unit: 'quả' }], note: 'Thái lát luộc vừa chín tới', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_v4', name: 'Rau cải ngọt luộc', category: 'vegetable', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_v4_1', name: 'Rau cải ngọt', quantity: 1, unit: 'bó' }], note: 'Chấm nước mắm trứng luộc dầm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_v5', name: 'Đậu cô ve xào lòng mề', category: 'vegetable', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_v5_1', name: 'Đậu cô ve', quantity: 400, unit: 'g' }], note: 'Xào chín tới để giữ độ ngọt giòn', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
 
     // Canh (Soup)
-    { id: 'dish_s1', name: 'Canh bí xanh nấu tôm', category: 'soup', note: 'Bí gọt vỏ thái mỏng ngọt mát', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_s2', name: 'Canh rau cải nấu thịt băm', category: 'soup', note: 'Thêm vài lát gừng đập dập ấm bụng', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_s3', name: 'Canh cà chua trứng đậu phụ', category: 'soup', note: 'Nấu nhanh, rắc nhiều hành hoa', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_s4', name: 'Canh khoai tây cà rốt sườn', category: 'soup', note: 'Hầm sườn nhừ, khoai bở mềm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_s5', name: 'Canh rau ngót nấu thịt nạc', category: 'soup', note: 'Vò nhẹ lá ngót trước khi nấu cho mềm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_s1', name: 'Canh bí xanh nấu tôm', category: 'soup', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_s1_1', name: 'Bí xanh', quantity: 500, unit: 'g' }, { id: 'ing_s1_2', name: 'Tôm tươi', quantity: 150, unit: 'g' }], note: 'Bí gọt vỏ thái mỏng ngọt mát', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_s2', name: 'Canh rau cải nấu thịt băm', category: 'soup', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_s2_1', name: 'Rau cải mơ', quantity: 1, unit: 'bó' }, { id: 'ing_s2_2', name: 'Thịt băm', quantity: 100, unit: 'g' }], note: 'Thêm vài lát gừng đập dập ấm bụng', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_s3', name: 'Canh cà chua trứng đậu phụ', category: 'soup', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_s3_1', name: 'Cà chua', quantity: 3, unit: 'quả' }, { id: 'ing_s3_2', name: 'Đậu phụ', quantity: 2, unit: 'miếng' }, { id: 'ing_s3_3', name: 'Trứng gà', quantity: 1, unit: 'quả' }], note: 'Nấu nhanh, rắc nhiều hành hoa', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_s4', name: 'Canh khoai tây cà rốt sườn', category: 'soup', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_s4_1', name: 'Sườn heo', quantity: 400, unit: 'g' }, { id: 'ing_s4_2', name: 'Khoai tây', quantity: 3, unit: 'củ' }, { id: 'ing_s4_3', name: 'Cà rốt', quantity: 1, unit: 'củ' }], note: 'Hầm sườn nhừ, khoai bở mềm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_s5', name: 'Canh rau ngót nấu thịt nạc', category: 'soup', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_s5_1', name: 'Rau ngót', quantity: 1, unit: 'bó' }, { id: 'ing_s5_2', name: 'Thịt nạc', quantity: 100, unit: 'g' }], note: 'Vò nhẹ lá ngót trước khi nấu cho mềm', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
 
     // Món phụ (Side dishes)
-    { id: 'dish_p1', name: 'Dưa cải muối chua', category: 'side', note: 'Ăn kèm thịt kho hoặc canh chua', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_p2', name: 'Đậu phụ tẩm hành', category: 'side', note: 'Rán vàng nhúng ngay vào mắm hành hoa', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
-    { id: 'dish_p3', name: 'Cà pháo muối giòn', category: 'side', note: 'Ăn kèm rau muống luộc', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 }
+    { id: 'dish_p1', name: 'Dưa cải muối chua', category: 'side', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_p1_1', name: 'Dưa cải chua', quantity: 300, unit: 'g' }], note: 'Ăn kèm thịt kho hoặc canh chua', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_p2', name: 'Đậu phụ tẩm hành', category: 'side', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_p2_1', name: 'Đậu phụ', quantity: 3, unit: 'miếng' }, { id: 'ing_p2_2', name: 'Hành hoa', quantity: 30, unit: 'g' }], note: 'Rán vàng nhúng ngay vào mắm hành hoa', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 },
+    { id: 'dish_p3', name: 'Cà pháo muối giòn', category: 'side', baseServings: 4, mealTypes: ['lunch', 'dinner'], ingredients: [{ id: 'ing_p3_1', name: 'Cà pháo', quantity: 200, unit: 'g' }], note: 'Ăn kèm rau muống luộc', enabled: true, createdAt: 1727100000000, updatedAt: 1727100000000 }
   ];
 
   const SEED_TIPS = [
@@ -168,7 +264,7 @@
     /**
      * Recalculate and synchronize lastUsedAt for all dishes based on stored menus.
      * Menu history is the single source of truth for eaten dishes.
-     * Only days with isEaten === true are counted.
+     * Scans all meals (breakfast, lunch, dinner) where meal.isEaten === true.
      */
     syncDishLastUsedAtFromMenus() {
       const rawDishes = this._safeGet(STORAGE_KEYS.DISHES, []);
@@ -177,13 +273,38 @@
       const menus = this.getMenus();
       const dishLatestEaten = new Map();
 
-      // Scan all menus and days where isEaten === true
+      // Scan all menus, days, and meals where isEaten === true
       Object.values(menus).forEach(menu => {
         if (!menu || !Array.isArray(menu.days)) return;
         menu.days.forEach(day => {
-          if (day && day.isEaten && day.date) {
-            // Timestamp at midnight local
-            const dayTimestamp = new Date(day.date + 'T00:00:00').getTime();
+          if (!day || !day.date) return;
+          const dayTimestamp = new Date(day.date + 'T00:00:00').getTime();
+
+          if (day.meals && typeof day.meals === 'object') {
+            ['breakfast', 'lunch', 'dinner'].forEach(mealKey => {
+              const meal = day.meals[mealKey];
+              if (meal && meal.isEaten) {
+                // If single dish (e.g. breakfast)
+                if (meal.single && meal.single.id && !String(meal.single.id).startsWith('manual_')) {
+                  const current = dishLatestEaten.get(meal.single.id) || 0;
+                  if (dayTimestamp > current) {
+                    dishLatestEaten.set(meal.single.id, dayTimestamp);
+                  }
+                }
+                // If family slots (lunch/dinner)
+                ['main', 'vegetable', 'soup', 'side'].forEach(slot => {
+                  const item = meal[slot];
+                  if (item && item.id && !String(item.id).startsWith('manual_')) {
+                    const current = dishLatestEaten.get(item.id) || 0;
+                    if (dayTimestamp > current) {
+                      dishLatestEaten.set(item.id, dayTimestamp);
+                    }
+                  }
+                });
+              }
+            });
+          } else if (day.isEaten) {
+            // Legacy day fallback
             ['main', 'vegetable', 'soup', 'side'].forEach(slot => {
               const item = day[slot];
               if (item && item.id && !String(item.id).startsWith('manual_')) {
@@ -226,6 +347,9 @@
             id: 'dish_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
             name: 'Món chưa đặt tên',
             category: 'main',
+            baseServings: 4,
+            mealTypes: ['lunch', 'dinner'],
+            ingredients: [],
             note: '',
             enabled: true,
             lastUsedAt: null,
@@ -234,22 +358,45 @@
           };
         }
 
+        const validCategory = ['main', 'vegetable', 'soup', 'side', 'single'].includes(d.category) ? d.category : 'main';
         const missingId = !d.id;
+        const missingBaseServings = typeof d.baseServings !== 'number' || d.baseServings <= 0;
+        const missingMealTypes = !Array.isArray(d.mealTypes) || d.mealTypes.length === 0;
+        const missingIngredients = !Array.isArray(d.ingredients);
         const missingFields = 
           typeof d.name !== 'string' ||
           typeof d.category !== 'string' ||
           typeof d.note !== 'string' ||
           typeof d.enabled !== 'boolean' ||
-          !d.createdAt;
+          !d.createdAt ||
+          missingBaseServings ||
+          missingMealTypes ||
+          missingIngredients;
 
         if (missingId || missingFields) {
           hasMigrated = true;
         }
 
+        const baseServings = (typeof d.baseServings === 'number' && d.baseServings > 0) ? Math.round(d.baseServings) : 4;
+        let mealTypes = Array.isArray(d.mealTypes) ? d.mealTypes.filter(m => ['breakfast', 'lunch', 'dinner'].includes(m)) : [];
+        if (mealTypes.length === 0) {
+          mealTypes = validCategory === 'single' ? ['breakfast'] : ['lunch', 'dinner'];
+        }
+
+        const ingredients = Array.isArray(d.ingredients) ? d.ingredients.map(ing => ({
+          id: ing.id || ('ing_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+          name: typeof ing.name === 'string' ? ing.name.trim() : '',
+          quantity: typeof ing.quantity === 'number' ? ing.quantity : (parseFloat(ing.quantity) || 0),
+          unit: typeof ing.unit === 'string' ? ing.unit.trim() : ''
+        })).filter(ing => ing.name) : [];
+
         return {
           id: d.id || ('dish_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
           name: typeof d.name === 'string' ? d.name : 'Món chưa đặt tên',
-          category: typeof d.category === 'string' ? d.category : 'main',
+          category: validCategory,
+          baseServings,
+          mealTypes,
+          ingredients,
           note: typeof d.note === 'string' ? d.note : '',
           enabled: typeof d.enabled === 'boolean' ? d.enabled : true,
           lastUsedAt: typeof d.lastUsedAt === 'number' ? d.lastUsedAt : null,
@@ -272,10 +419,30 @@
 
     addDish(dishData) {
       const dishes = this.getDishes();
+      const validCategory = ['main', 'vegetable', 'soup', 'side', 'single'].includes(dishData.category) ? dishData.category : 'main';
+      const baseServings = typeof dishData.baseServings === 'number' && dishData.baseServings > 0 
+        ? Math.round(dishData.baseServings) 
+        : (parseInt(dishData.baseServings, 10) || 4);
+
+      let mealTypes = Array.isArray(dishData.mealTypes) ? dishData.mealTypes.filter(m => ['breakfast', 'lunch', 'dinner'].includes(m)) : [];
+      if (mealTypes.length === 0) {
+        mealTypes = validCategory === 'single' ? ['breakfast'] : ['lunch', 'dinner'];
+      }
+
+      const ingredients = Array.isArray(dishData.ingredients) ? dishData.ingredients.map(ing => ({
+        id: ing.id || ('ing_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+        name: (ing.name || '').trim(),
+        quantity: typeof ing.quantity === 'number' ? ing.quantity : (parseFloat(ing.quantity) || 0),
+        unit: (ing.unit || '').trim()
+      })).filter(ing => ing.name) : [];
+
       const newDish = {
         id: 'dish_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
         name: (dishData.name || '').trim(),
-        category: dishData.category || 'main',
+        category: validCategory,
+        baseServings,
+        mealTypes,
+        ingredients,
         note: (dishData.note || '').trim(),
         enabled: typeof dishData.enabled === 'boolean' ? dishData.enabled : true,
         lastUsedAt: null,
@@ -292,11 +459,43 @@
       const index = dishes.findIndex(d => d.id === id);
       if (index === -1) return null;
 
+      const current = dishes[index];
+      const validCategory = updates.category !== undefined && ['main', 'vegetable', 'soup', 'side', 'single'].includes(updates.category) 
+        ? updates.category 
+        : current.category;
+
+      let baseServings = current.baseServings;
+      if (updates.baseServings !== undefined) {
+        baseServings = typeof updates.baseServings === 'number' && updates.baseServings > 0 
+          ? Math.round(updates.baseServings) 
+          : (parseInt(updates.baseServings, 10) || 4);
+      }
+
+      let mealTypes = current.mealTypes;
+      if (updates.mealTypes !== undefined && Array.isArray(updates.mealTypes)) {
+        const filtered = updates.mealTypes.filter(m => ['breakfast', 'lunch', 'dinner'].includes(m));
+        if (filtered.length > 0) mealTypes = filtered;
+      }
+
+      let ingredients = current.ingredients;
+      if (updates.ingredients !== undefined && Array.isArray(updates.ingredients)) {
+        ingredients = updates.ingredients.map(ing => ({
+          id: ing.id || ('ing_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
+          name: (ing.name || '').trim(),
+          quantity: typeof ing.quantity === 'number' ? ing.quantity : (parseFloat(ing.quantity) || 0),
+          unit: (ing.unit || '').trim()
+        })).filter(ing => ing.name);
+      }
+
       dishes[index] = {
-        ...dishes[index],
+        ...current,
         ...updates,
-        name: updates.name !== undefined ? updates.name.trim() : dishes[index].name,
-        note: updates.note !== undefined ? updates.note.trim() : dishes[index].note,
+        name: updates.name !== undefined ? updates.name.trim() : current.name,
+        category: validCategory,
+        baseServings,
+        mealTypes,
+        ingredients,
+        note: updates.note !== undefined ? updates.note.trim() : current.note,
         updatedAt: Date.now()
       };
       this.saveDishes(dishes);
@@ -323,20 +522,112 @@
       const normalizedDays = menu.days.map(day => {
         if (!day || typeof day !== 'object') return day;
 
-        const attendance = day.attendance || {};
-        const normalizedAttendance = {};
+        const oldAttendance = day.attendance || {};
+        let meals = day.meals;
 
-        ['breakfast', 'lunch', 'dinner'].forEach(meal => {
-          const slot = attendance[meal];
-          normalizedAttendance[meal] = {
-            memberIds: Array.isArray(slot?.memberIds) ? slot.memberIds.filter(Boolean) : [],
-            manualOverride: typeof slot?.manualOverride === 'boolean' ? slot.manualOverride : false
+        if (!meals || typeof meals !== 'object') {
+          // Migrate V1 legacy day to 3-meal structure
+          // dinner gets legacy dishes, isEaten, and attendance
+          meals = {
+            breakfast: {
+              type: 'single',
+              single: null,
+              attendance: {
+                memberIds: Array.isArray(oldAttendance.breakfast?.memberIds) ? [...oldAttendance.breakfast.memberIds] : [],
+                manualOverride: !!oldAttendance.breakfast?.manualOverride
+              },
+              isEaten: false
+            },
+            lunch: {
+              type: 'family',
+              main: null,
+              vegetable: null,
+              soup: null,
+              side: null,
+              attendance: {
+                memberIds: Array.isArray(oldAttendance.lunch?.memberIds) ? [...oldAttendance.lunch.memberIds] : [],
+                manualOverride: !!oldAttendance.lunch?.manualOverride
+              },
+              isEaten: false
+            },
+            dinner: {
+              type: 'family',
+              main: day.main || null,
+              vegetable: day.vegetable || null,
+              soup: day.soup || null,
+              side: day.side || null,
+              attendance: {
+                memberIds: Array.isArray(oldAttendance.dinner?.memberIds) 
+                  ? [...oldAttendance.dinner.memberIds] 
+                  : (Array.isArray(oldAttendance.memberIds) ? [...oldAttendance.memberIds] : []),
+                manualOverride: !!oldAttendance.dinner?.manualOverride
+              },
+              isEaten: typeof day.isEaten === 'boolean' ? day.isEaten : false
+            }
           };
-        });
+        } else {
+          // Normalize existing meals object
+          const normAttendance = (mealKey) => {
+            const att = (day.attendance && day.attendance[mealKey] !== undefined)
+              ? day.attendance[mealKey]
+              : meals[mealKey]?.attendance;
+            return {
+              memberIds: Array.isArray(att?.memberIds) ? att.memberIds.filter(Boolean) : [],
+              manualOverride: typeof att?.manualOverride === 'boolean' ? att.manualOverride : false
+            };
+          };
 
+          let isDinnerEaten = false;
+          if (day.isEaten !== undefined && day.isEaten !== meals.dinner?.isEaten) {
+            isDinnerEaten = !!day.isEaten;
+          } else if (typeof meals.dinner?.isEaten === 'boolean') {
+            isDinnerEaten = meals.dinner.isEaten;
+          } else if (typeof day.isEaten === 'boolean') {
+            isDinnerEaten = day.isEaten;
+          }
+
+          meals = {
+            breakfast: {
+              type: meals.breakfast?.type || 'single',
+              single: meals.breakfast?.single || null,
+              attendance: normAttendance('breakfast'),
+              isEaten: typeof meals.breakfast?.isEaten === 'boolean' ? meals.breakfast.isEaten : false
+            },
+            lunch: {
+              type: meals.lunch?.type || 'family',
+              main: meals.lunch?.main || null,
+              vegetable: meals.lunch?.vegetable || null,
+              soup: meals.lunch?.soup || null,
+              side: meals.lunch?.side || null,
+              attendance: normAttendance('lunch'),
+              isEaten: typeof meals.lunch?.isEaten === 'boolean' ? meals.lunch.isEaten : false
+            },
+            dinner: {
+              type: meals.dinner?.type || 'family',
+              main: meals.dinner?.main !== undefined ? meals.dinner.main : (day.main || null),
+              vegetable: meals.dinner?.vegetable !== undefined ? meals.dinner.vegetable : (day.vegetable || null),
+              soup: meals.dinner?.soup !== undefined ? meals.dinner.soup : (day.soup || null),
+              side: meals.dinner?.side !== undefined ? meals.dinner.side : (day.side || null),
+              attendance: normAttendance('dinner'),
+              isEaten: isDinnerEaten
+            }
+          };
+        }
+
+        // Return day with both 3-meal structure and backward-compatible dinner aliases
         return {
           ...day,
-          attendance: normalizedAttendance
+          meals: meals,
+          main: meals.dinner.main,
+          vegetable: meals.dinner.vegetable,
+          soup: meals.dinner.soup,
+          side: meals.dinner.side,
+          isEaten: meals.dinner.isEaten,
+          attendance: {
+            breakfast: meals.breakfast.attendance,
+            lunch: meals.lunch.attendance,
+            dinner: meals.dinner.attendance
+          }
         };
       });
 
@@ -608,6 +899,30 @@
     getTipById(id) {
       const tips = this.getTips();
       return tips.find(t => t.id === id) || null;
+    }
+
+    // --- Shopping Checks CRUD ---
+    getShoppingChecks(weekId) {
+      const allChecks = this._safeGet(STORAGE_KEYS.SHOPPING_CHECKS, {});
+      if (!allChecks || typeof allChecks !== 'object') return {};
+      return (weekId && typeof allChecks[weekId] === 'object') ? allChecks[weekId] : {};
+    }
+
+    saveShoppingChecks(weekId, checks) {
+      if (!weekId) return false;
+      const allChecks = this._safeGet(STORAGE_KEYS.SHOPPING_CHECKS, {});
+      const safeAll = (allChecks && typeof allChecks === 'object') ? allChecks : {};
+      safeAll[weekId] = checks || {};
+      return this._safeSet(STORAGE_KEYS.SHOPPING_CHECKS, safeAll);
+    }
+
+    toggleShoppingCheck(weekId, itemKey) {
+      if (!weekId || !itemKey) return false;
+      const checks = this.getShoppingChecks(weekId);
+      const nextVal = !checks[itemKey];
+      checks[itemKey] = nextVal;
+      this.saveShoppingChecks(weekId, checks);
+      return nextVal;
     }
   }
 
