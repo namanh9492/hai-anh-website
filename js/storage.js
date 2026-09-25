@@ -390,6 +390,26 @@
           unit: typeof ing.unit === 'string' ? ing.unit.trim() : ''
         })).filter(ing => ing.name) : [];
 
+        let image = null;
+        if (d.image && typeof d.image === 'object') {
+          image = {
+            assetId: d.image.assetId || null,
+            provider: d.image.provider || 'wikimedia-commons',
+            sourcePageUrl: d.image.sourcePageUrl || null,
+            originalUrl: d.image.originalUrl || null,
+            thumbnailUrl: d.image.thumbnailUrl || null,
+            title: d.image.title || '',
+            author: d.image.author || '',
+            licenseName: d.image.licenseName || '',
+            licenseUrl: d.image.licenseUrl || null,
+            attributionRequired: d.image.attributionRequired !== false,
+            width: typeof d.image.width === 'number' ? d.image.width : null,
+            height: typeof d.image.height === 'number' ? d.image.height : null,
+            savedLocally: typeof d.image.savedLocally === 'boolean' ? d.image.savedLocally : true,
+            updatedAt: d.image.updatedAt || Date.now()
+          };
+        }
+
         return {
           id: d.id || ('dish_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
           name: typeof d.name === 'string' ? d.name : 'Món chưa đặt tên',
@@ -400,6 +420,7 @@
           note: typeof d.note === 'string' ? d.note : '',
           enabled: typeof d.enabled === 'boolean' ? d.enabled : true,
           lastUsedAt: typeof d.lastUsedAt === 'number' ? d.lastUsedAt : null,
+          image,
           createdAt: d.createdAt || Date.now(),
           updatedAt: d.updatedAt || Date.now()
         };
@@ -432,12 +453,12 @@
       const ingredients = Array.isArray(dishData.ingredients) ? dishData.ingredients.map(ing => ({
         id: ing.id || ('ing_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
         name: (ing.name || '').trim(),
-        quantity: typeof ing.quantity === 'number' ? ing.quantity : (parseFloat(ing.quantity) || 0),
+        quantity: typeof ing.quantity === 'number' ? ing.quantity : (typeof ing.amount === 'number' ? ing.amount : (parseFloat(ing.quantity || ing.amount) || 0)),
         unit: (ing.unit || '').trim()
       })).filter(ing => ing.name) : [];
 
       const newDish = {
-        id: 'dish_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        id: dishData.id || ('dish_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5)),
         name: (dishData.name || '').trim(),
         category: validCategory,
         baseServings,
@@ -445,7 +466,8 @@
         ingredients,
         note: (dishData.note || '').trim(),
         enabled: typeof dishData.enabled === 'boolean' ? dishData.enabled : true,
-        lastUsedAt: null,
+        lastUsedAt: typeof dishData.lastUsedAt === 'number' ? dishData.lastUsedAt : null,
+        image: (dishData.image && typeof dishData.image === 'object') ? dishData.image : null,
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
@@ -496,6 +518,7 @@
         mealTypes,
         ingredients,
         note: updates.note !== undefined ? updates.note.trim() : current.note,
+        image: updates.image !== undefined ? updates.image : (current.image || null),
         updatedAt: Date.now()
       };
       this.saveDishes(dishes);
@@ -504,8 +527,17 @@
 
     deleteDish(id) {
       const dishes = this.getDishes();
+      const targetDish = dishes.find(d => d.id === id);
       const filtered = dishes.filter(d => d.id !== id);
       this.saveDishes(filtered);
+
+      // Clean up associated binary image asset from IndexedDB
+      if (targetDish && targetDish.image && targetDish.image.assetId) {
+        if (typeof window !== 'undefined' && window.ImageStorage && typeof window.ImageStorage.deleteImageAsset === 'function') {
+          window.ImageStorage.deleteImageAsset(targetDish.image.assetId).catch(() => {});
+        }
+      }
+
       return filtered.length !== dishes.length;
     }
 

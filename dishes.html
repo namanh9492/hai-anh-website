@@ -213,6 +213,38 @@
             <input type="text" class="form-input" id="dish-name-input" placeholder="Ví dụ: Cá kho tộ, Phở bò, Canh chua..." required>
           </div>
 
+          <!-- Section: Ảnh món ăn (Phase 3) -->
+          <div class="form-group dish-image-section">
+            <label class="form-label">Ảnh món ăn</label>
+            <div class="dish-image-edit-box">
+              <div class="dish-image-preview-wrapper" id="dish-form-image-preview">
+                <div class="dish-image-placeholder-large">
+                  <i data-lucide="image"></i>
+                  <span>Chưa có ảnh</span>
+                </div>
+              </div>
+              <div class="dish-image-actions">
+                <div class="dish-image-buttons">
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-find-dish-image">
+                    <i data-lucide="image"></i>
+                    <span id="btn-find-image-text">Tìm ảnh tự động</span>
+                  </button>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-change-dish-image" style="display: none;">
+                    <i data-lucide="refresh-cw"></i>
+                    <span>Đổi ảnh</span>
+                  </button>
+                  <button type="button" class="btn btn-danger-soft btn-sm" id="btn-remove-dish-image" style="display: none;">
+                    <i data-lucide="trash-2"></i>
+                    <span>Xóa ảnh</span>
+                  </button>
+                </div>
+                <div class="dish-image-attribution" id="dish-form-image-attribution" style="display: none;">
+                  <!-- Attribution metadata rendered dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div class="form-group">
               <label class="form-label" for="dish-category-select">
@@ -295,11 +327,65 @@
     </div>
   </div>
 
+  <!-- Modal: Image Search & Selection (Phase 3) -->
+  <div class="modal-backdrop" id="image-search-modal" role="dialog" aria-modal="true" aria-labelledby="image-search-modal-title">
+    <div class="modal-dialog modal-dialog-lg" style="max-width: 680px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="image-search-modal-title">Tìm ảnh từ Wikimedia Commons</h3>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" id="btn-close-image-modal" aria-label="Đóng">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        <!-- Search Input Bar -->
+        <div class="image-search-bar" style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <div class="search-input-wrapper" style="flex: 1;">
+            <i data-lucide="search"></i>
+            <input type="text" class="search-input" id="image-search-input" placeholder="Từ khóa tìm kiếm ảnh...">
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-do-image-search">
+            <i data-lucide="search"></i>
+            <span>Tìm lại</span>
+          </button>
+        </div>
+
+        <!-- Status / Loading Indicator -->
+        <div id="image-search-loading" class="image-search-loading" style="display: none; text-align: center; padding: 30px 0;">
+          <div class="spinner" style="margin: 0 auto 12px auto;"></div>
+          <p style="color: var(--muted-foreground); font-size: 0.9rem;" id="image-search-loading-text">Đang tìm ảnh...</p>
+        </div>
+
+        <!-- Results Grid -->
+        <div id="image-search-results-grid" class="image-search-results-grid">
+          <!-- Dynamic result cards -->
+        </div>
+
+        <!-- Empty Results Notice -->
+        <div id="image-search-empty-state" class="empty-state" style="display: none; padding: 30px 20px;">
+          <div class="empty-state-icon">
+            <i data-lucide="image-off"></i>
+          </div>
+          <h4 class="empty-state-title">Không tìm thấy ảnh phù hợp</h4>
+          <p class="empty-state-desc">Bạn có thể sửa từ khóa và tìm lại (VD: thêm "món ăn Việt Nam" hoặc tên tiếng Anh).</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" id="btn-cancel-image-search">Hủy</button>
+        <button type="button" class="btn btn-primary" id="btn-apply-dish-image" disabled>
+          <i data-lucide="check"></i>
+          <span id="btn-apply-image-text">Dùng ảnh này</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Lucide Icons CDN -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.344.0/dist/umd/lucide.min.js"></script>
   <!-- App Scripts -->
   <script src="js/storage.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/image-storage.js"></script>
+  <script src="js/image-service.js"></script>
   <script src="js/dishes.js"></script>
 </body>
 </html>

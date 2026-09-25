@@ -36,6 +36,14 @@ global.document = {
   body: { appendChild: () => {} }
 };
 
+// Load image-storage.js
+const imgStorageCode = fs.readFileSync(path.join(__dirname, '../js/image-storage.js'), 'utf8');
+eval(imgStorageCode);
+
+// Load image-service.js
+const imgServiceCode = fs.readFileSync(path.join(__dirname, '../js/image-service.js'), 'utf8');
+eval(imgServiceCode);
+
 // Load storage.js
 const storageCode = fs.readFileSync(path.join(__dirname, '../js/storage.js'), 'utf8');
 eval(storageCode);
@@ -1214,6 +1222,285 @@ assert(loaded23Menu.days[0].main.id === 'dish_canonical_test', 'Compatibility al
 assert(loaded23Menu.days[0].main.name === loaded23Menu.days[0].meals.dinner.main.name, 'Alias and canonical name match identically');
 
 console.log('\n🎉 ALL SUITES 1-11 AND ALL PHASE 2 TESTS 1-23 PASSED 100% PERFECTLY!\n');
+
+// ======================================================
+// === TEST SUITE 12: PHASE 3 MANDATORY TESTS (1-15)  ===
+// ======================================================
+console.log('======================================================');
+console.log('=== TEST SUITE 12: PHASE 3 MANDATORY TESTS (1-15)  ===');
+console.log('======================================================\n');
+
+(async () => {
+  // Test 1: Legacy dish normalization
+  console.log('- Phase 3 Test 1: Legacy dish without image');
+  const legacyDish = {
+    id: 'legacy_dish_1',
+    name: 'Cá rô phi rán',
+    category: 'main',
+    enabled: true
+  };
+  const normalizedLegacy = window.StorageManager.addDish(legacyDish);
+  assert(normalizedLegacy.image === null, 'Legacy dish without image is normalized to image === null');
+  const readLegacy = window.StorageManager.getDishById('legacy_dish_1');
+  assert(readLegacy.image === null, 'Read legacy dish from storage has image === null and does not crash');
+
+  // Test 2: Search result normalization
+  console.log('\n- Phase 3 Test 2: Search result normalization');
+  const mockWikiRaw = {
+    pageid: 123456,
+    title: 'File:Ca kho to Vietnamese braised fish.jpg',
+    imageinfo: [
+      {
+        url: 'https://upload.wikimedia.org/wikipedia/commons/1/1a/Ca_kho_to.jpg',
+        thumburl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Ca_kho_to.jpg/640px-Ca_kho_to.jpg',
+        descriptionurl: 'https://commons.wikimedia.org/wiki/File:Ca_kho_to.jpg',
+        width: 1600,
+        height: 1200,
+        mime: 'image/jpeg',
+        extmetadata: {
+          Artist: { value: '<a href="https://commons.wikimedia.org/wiki/User:ChefA">Chef A</a>' },
+          LicenseShortName: { value: 'CC BY-SA 4.0' },
+          LicenseUrl: { value: 'https://creativecommons.org/licenses/by-sa/4.0/' }
+        }
+      }
+    ]
+  };
+  const normalizedWiki = window.ImageService.normalizeWikimediaItem(mockWikiRaw, 'Cá kho tộ');
+  assert(normalizedWiki !== null, 'Normalized item is not null');
+  assert(normalizedWiki.title === 'Ca kho to Vietnamese braised fish', 'Title stripped of File: and extension');
+  assert(normalizedWiki.thumbnailUrl.startsWith('https://'), 'thumbnailUrl is valid https URL');
+  assert(normalizedWiki.originalUrl.startsWith('https://'), 'originalUrl is valid https URL');
+  assert(normalizedWiki.sourcePageUrl.startsWith('https://'), 'sourcePageUrl is valid https URL');
+  assert(normalizedWiki.author === 'Chef A', 'Author HTML tags stripped clean');
+  assert(normalizedWiki.licenseName === 'CC BY-SA 4.0', 'licenseName extracted correctly');
+  assert(normalizedWiki.licenseUrl === 'https://creativecommons.org/licenses/by-sa/4.0/', 'licenseUrl extracted correctly');
+  assert(normalizedWiki.width === 1600 && normalizedWiki.height === 1200, 'Dimensions width/height normalized');
+
+  // Test 3: Unsafe URL rejection
+  console.log('\n- Phase 3 Test 3: Unsafe URL rejection');
+  const isSafe = window.ImageService.isSafeHttpsUrl;
+  assert(isSafe('https://commons.wikimedia.org/wiki/File:Test.jpg') === true, 'Accepts valid HTTPS URL');
+  assert(isSafe('http://commons.wikimedia.org/wiki/File:Test.jpg') === false, 'Rejects insecure HTTP URL');
+  assert(isSafe('javascript:alert(1)') === false, 'Rejects javascript: URI');
+  assert(isSafe('data:text/html;base64,PHNjcmlwdD4=') === false, 'Rejects data: URI');
+  assert(isSafe('file:///etc/passwd') === false, 'Rejects file: URI');
+  assert(isSafe(null) === false, 'Rejects null URL');
+
+  // Test 4: extmetadata sanitization
+  console.log('\n- Phase 3 Test 4: extmetadata sanitization');
+  const maliciousAuthor = '<script>alert("xss")</script><a href="http://bad.com">Nguyễn <b>Văn A</b></a>';
+  const strippedAuthor = window.ImageService.stripHtml(maliciousAuthor);
+  assert(!strippedAuthor.includes('<'), 'Sanitized author contains no <');
+  assert(!strippedAuthor.includes('>'), 'Sanitized author contains no >');
+  assert(!strippedAuthor.includes('script'), 'Sanitized author contains no script');
+  assert(strippedAuthor === 'Nguyễn Văn A', 'Text content extracted without executable HTML tags (got: ' + strippedAuthor + ')');
+
+  // Test 5: Store image
+  console.log('\n- Phase 3 Test 5: Store image in ImageStorage');
+  const mockBlob = new Blob(['mock_image_binary_data'], { type: 'image/jpeg' });
+  const testAssetId = 'dishimg_test_001';
+  await window.ImageStorage.saveImageAsset({
+    id: testAssetId,
+    dishId: 'dish_store_test',
+    blob: mockBlob,
+    mimeType: 'image/jpeg',
+    width: 800,
+    height: 600
+  });
+  const loadedAsset = await window.ImageStorage.getImageAsset(testAssetId);
+  assert(loadedAsset && loadedAsset.id === testAssetId, 'Asset saved and retrieved by ID');
+  assert(loadedAsset.dishId === 'dish_store_test', 'dishId matches');
+  assert(loadedAsset.blob && loadedAsset.blob.size === mockBlob.size, 'Blob data intact');
+
+  // Test 6: Replace image atomicity
+  console.log('\n- Phase 3 Test 6: Replace image atomicity');
+  const dishForReplace = window.StorageManager.addDish({
+    id: 'dish_replace_test',
+    name: 'Sườn xào chua ngọt',
+    category: 'main',
+    enabled: true
+  });
+  // 6a: First save
+  await window.ImageService.saveDishImage('dish_replace_test', {
+    blob: new Blob(['old_blob_content'], { type: 'image/jpeg' }),
+    width: 600,
+    height: 400,
+    mimeType: 'image/jpeg',
+    title: 'Sườn xào 1',
+    author: 'Author 1',
+    licenseName: 'CC-BY',
+    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+    sourcePageUrl: 'https://commons.wikimedia.org/wiki/File:1.jpg'
+  });
+  const dishWithOldImg = window.StorageManager.getDishById('dish_replace_test');
+  const oldAssetId = dishWithOldImg.image.assetId;
+  assert(oldAssetId !== null, 'Initial image asset created');
+
+  // 6b: Replace with second image (succeeds)
+  await window.ImageService.saveDishImage('dish_replace_test', {
+    blob: new Blob(['new_blob_content'], { type: 'image/webp' }),
+    width: 800,
+    height: 600,
+    mimeType: 'image/webp',
+    title: 'Sườn xào 2',
+    author: 'Author 2',
+    licenseName: 'CC-BY-SA',
+    licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    sourcePageUrl: 'https://commons.wikimedia.org/wiki/File:2.jpg'
+  });
+  const dishWithNewImg = window.StorageManager.getDishById('dish_replace_test');
+  const newAssetId = dishWithNewImg.image.assetId;
+  assert(newAssetId !== oldAssetId, 'Dish references new asset ID');
+  const oldAssetCheck = await window.ImageStorage.getImageAsset(oldAssetId);
+  assert(oldAssetCheck === null, 'Old binary asset was deleted from storage');
+  const newAssetCheck = await window.ImageStorage.getImageAsset(newAssetId);
+  assert(newAssetCheck !== null, 'New binary asset exists in storage');
+
+  // 6c: Replace fails -> old image remains intact
+  let failedSaveCaught = false;
+  try {
+    await window.ImageService.saveDishImage('dish_replace_test', {
+      blob: new Blob(['corrupt'], { type: 'text/plain' }), // will fail MIME validation
+      mimeType: 'text/plain'
+    });
+  } catch (err) {
+    failedSaveCaught = true;
+  }
+  assert(failedSaveCaught, 'Invalid MIME save threw error');
+  const dishAfterFailedSave = window.StorageManager.getDishById('dish_replace_test');
+  assert(dishAfterFailedSave.image.assetId === newAssetId, 'Dish still points to previous valid image asset');
+
+  // Test 7: Delete image
+  console.log('\n- Phase 3 Test 7: Delete image');
+  await window.ImageService.deleteDishImage('dish_replace_test');
+  const dishAfterDeleteImg = window.StorageManager.getDishById('dish_replace_test');
+  assert(dishAfterDeleteImg !== null, 'Dish still exists');
+  assert(dishAfterDeleteImg.image === null, 'dish.image is null');
+  const deletedAssetCheck = await window.ImageStorage.getImageAsset(newAssetId);
+  assert(deletedAssetCheck === null, 'Binary asset deleted from ImageStorage');
+
+  // Test 8: Delete dish cleanup
+  console.log('\n- Phase 3 Test 8: Delete dish cleans up image asset');
+  const dishForCleanup = window.StorageManager.addDish({
+    id: 'dish_cleanup_test',
+    name: 'Canh ngao nấu chua',
+    category: 'soup',
+    enabled: true
+  });
+  await window.ImageService.saveDishImage('dish_cleanup_test', {
+    blob: new Blob(['soup_image'], { type: 'image/jpeg' }),
+    width: 600,
+    height: 400,
+    mimeType: 'image/jpeg'
+  });
+  const savedCleanupDish = window.StorageManager.getDishById('dish_cleanup_test');
+  const cleanupAssetId = savedCleanupDish.image.assetId;
+  assert(cleanupAssetId !== null, 'Dish has saved image asset');
+
+  window.StorageManager.deleteDish('dish_cleanup_test');
+  assert(window.StorageManager.getDishById('dish_cleanup_test') === null, 'Dish deleted from StorageManager');
+  const cleanupAssetCheck = await window.ImageStorage.getImageAsset(cleanupAssetId);
+  assert(cleanupAssetCheck === null, 'Associated image asset deleted from ImageStorage');
+
+  // Test 9: Missing IndexedDB blob fallback
+  console.log('\n- Phase 3 Test 9: Missing IndexedDB blob fallback');
+  const dishMissingBlob = {
+    id: 'dish_missing_blob',
+    name: 'Thịt bò xào cần tỏi',
+    image: {
+      assetId: 'dishimg_non_existent',
+      savedLocally: true,
+      thumbnailUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/test/640px-test.jpg',
+      originalUrl: 'https://upload.wikimedia.org/wikipedia/commons/test.jpg'
+    }
+  };
+  const fallbackUrl = await window.ImageService.getDishImageUrl(dishMissingBlob);
+  assert(fallbackUrl === 'https://upload.wikimedia.org/wikipedia/commons/thumb/test/640px-test.jpg', 'Fell back to remote thumbnailUrl without crashing');
+
+  // Test 10: Provider failure handling
+  console.log('\n- Phase 3 Test 10: Provider failure handling');
+  const originalFetch = global.fetch;
+  global.fetch = () => Promise.reject(new Error('Network offline'));
+  let providerSearchFailed = false;
+  try {
+    const results = await window.ImageService.searchDishImages('Món bất kỳ');
+    assert(Array.isArray(results) && results.length === 0, 'On network failure, searchDishImages gracefully returns empty array');
+  } catch (err) {
+    providerSearchFailed = true;
+  }
+  global.fetch = originalFetch;
+  assert(!providerSearchFailed, 'Handled network error gracefully without crashing');
+
+  // Test 11: Image MIME validation
+  console.log('\n- Phase 3 Test 11: Image MIME validation');
+  assert(window.ImageService.isAllowedMimeType('image/jpeg') === true, 'Accepts image/jpeg');
+  assert(window.ImageService.isAllowedMimeType('image/png') === true, 'Accepts image/png');
+  assert(window.ImageService.isAllowedMimeType('image/webp') === true, 'Accepts image/webp');
+  assert(window.ImageService.isAllowedMimeType('text/html') === false, 'Rejects text/html');
+  assert(window.ImageService.isAllowedMimeType('application/javascript') === false, 'Rejects application/javascript');
+  assert(window.ImageService.isAllowedMimeType('image/svg+xml') === false, 'Rejects image/svg+xml');
+
+  // Test 12: Image size limits
+  console.log('\n- Phase 3 Test 12: Image size limits');
+  const oversizedBlob = { size: 15 * 1024 * 1024, type: 'image/jpeg' }; // 15MB
+  let oversizedRejected = false;
+  try {
+    window.ImageService.validateBlob(oversizedBlob);
+  } catch (err) {
+    oversizedRejected = true;
+    assert(err.message.includes('quá lớn') || err.message.includes('10 MB'), 'Error mentions size limit');
+  }
+  assert(oversizedRejected, 'Oversized image (>10MB) was rejected');
+
+  // Test 13: Dish image does not alter recipe
+  console.log('\n- Phase 3 Test 13: Dish image does not alter recipe');
+  const dishWithRecipe = window.StorageManager.addDish({
+    id: 'dish_recipe_img_test',
+    name: 'Bò kho bánh mì',
+    category: 'main',
+    enabled: true,
+    baseServings: 4,
+    mealTypes: ['breakfast', 'dinner'],
+    lastUsedAt: 1727000000000,
+    ingredients: [
+      { id: 'ing_1', name: 'Thịt bò', amount: 500, unit: 'g' },
+      { id: 'ing_2', name: 'Cà rốt', amount: 200, unit: 'g' }
+    ]
+  });
+
+  await window.ImageService.saveDishImage('dish_recipe_img_test', {
+    blob: new Blob(['recipe_dish_img'], { type: 'image/jpeg' }),
+    width: 800,
+    height: 600,
+    mimeType: 'image/jpeg'
+  });
+
+  const reloadedDishWithRecipe = window.StorageManager.getDishById('dish_recipe_img_test');
+  assert(reloadedDishWithRecipe.baseServings === 4, 'baseServings unchanged');
+  assert(reloadedDishWithRecipe.mealTypes.length === 2 && reloadedDishWithRecipe.mealTypes.includes('breakfast'), 'mealTypes unchanged');
+  assert(reloadedDishWithRecipe.lastUsedAt === 1727000000000, 'lastUsedAt unchanged');
+  assert(reloadedDishWithRecipe.ingredients.length === 2, 'ingredients count unchanged');
+  assert(reloadedDishWithRecipe.ingredients[0].quantity === 500, 'ingredient amounts unchanged');
+
+  // Test 14: Menu without image
+  console.log('\n- Phase 3 Test 14: Menu generation without image runs identically');
+  const testDishesNoImg = window.StorageManager.getDishes().map(d => ({ ...d, image: null }));
+  const testMembers = [{ id: 'mem_phase3', name: 'Mẹ', mealSchedule: { monday: { breakfast: true, lunch: true, dinner: true } } }];
+  const menuGenerated = window.MenuGenerator.generateWeeklyMenu('2026-11-09', testDishesNoImg, null, null, testMembers);
+  assert(menuGenerated && menuGenerated.days && menuGenerated.days.length === 7, 'Weekly menu generated with 7 days');
+  assert(menuGenerated.days[0].meals.breakfast.single !== null, 'Breakfast generated');
+  assert(menuGenerated.days[0].meals.dinner.main !== null, 'Dinner main generated');
+
+  // Test 15: Shopping without image
+  console.log('\n- Phase 3 Test 15: Shopping calculations do not depend on image');
+  const shoppingResult = window.ShoppingService.aggregateWeeklyIngredients(menuGenerated, testDishesNoImg, testMembers);
+  assert(typeof shoppingResult.totalItems === 'number', 'Shopping calculated totalItems');
+  assert(Array.isArray(shoppingResult.items), 'Shopping returned valid items array');
+
+  console.log('\n🎉 ALL 15 PHASE 3 TESTS PASSED 100% PERFECTLY!\n');
+  console.log('🌟 ALL SUITES 1-12 COMPLETE AND PASSED! 🌟\n');
+})();
+
 
 
 

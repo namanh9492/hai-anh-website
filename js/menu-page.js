@@ -198,6 +198,70 @@
   }
 
   /**
+   * Resolve dish object with full dish data (including image metadata) from StorageManager
+   */
+  function resolveDishWithImage(dishRef, allDishes) {
+    if (!dishRef) return null;
+    if (dishRef.image) return dishRef;
+    if (dishRef.id && Array.isArray(allDishes)) {
+      const full = allDishes.find(d => d.id === dishRef.id);
+      if (full) return full;
+    }
+    return dishRef;
+  }
+
+  /**
+   * Get featured dish for lunch/dinner (prioritizes main dish, fallback to first available dish)
+   */
+  function getFeaturedMealDish(mealObj, allDishes) {
+    if (!mealObj) return null;
+    const mainDish = resolveDishWithImage(mealObj.main, allDishes);
+    if (mainDish && mainDish.image) return mainDish;
+
+    const candidates = [mealObj.vegetable, mealObj.soup, mealObj.side];
+    for (const c of candidates) {
+      const resolved = resolveDishWithImage(c, allDishes);
+      if (resolved && resolved.image) return resolved;
+    }
+
+    if (mainDish) return mainDish;
+    for (const c of candidates) {
+      const resolved = resolveDishWithImage(c, allDishes);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  /**
+   * Hydrate images for menu thumbnails asynchronously from IndexedDB
+   */
+  function hydrateMenuImages() {
+    if (typeof window === 'undefined' || !window.ImageService || typeof window.ImageService.getDishImageUrl !== 'function') return;
+    const allDishes = window.StorageManager.getDishes();
+
+    const thumbBoxes = document.querySelectorAll('[data-dish-id]');
+    thumbBoxes.forEach(box => {
+      const dishId = box.dataset.dishId;
+      if (!dishId) return;
+      const dish = allDishes.find(d => d.id === dishId);
+      if (!dish || !dish.image) return;
+
+      const imgEl = box.querySelector('img');
+      const placeholderEl = box.querySelector('.meal-main-thumb-placeholder, .meal-dish-thumb-placeholder, .today-meal-thumb-placeholder');
+
+      if (imgEl && (!imgEl.src || imgEl.style.display === 'none')) {
+        window.ImageService.getDishImageUrl(dish).then(url => {
+          if (url) {
+            imgEl.src = url;
+            imgEl.style.display = 'block';
+            if (placeholderEl) placeholderEl.style.display = 'none';
+          }
+        }).catch(() => {});
+      }
+    });
+  }
+
+  /**
    * Render the top "Hôm nay ăn gì?" banner with 3 meals
    */
   function renderTodayHero() {
@@ -206,6 +270,7 @@
     const todayDate = new Date();
     const todayISO = window.MenuGenerator.formatDateISO(todayDate);
     const allMembers = window.StorageManager.getMembers();
+    const allDishes = window.StorageManager.getDishes();
 
     // Case 1: No members configured
     if (!allMembers || allMembers.length === 0) {
@@ -341,6 +406,10 @@
     const lInfo = getHeroMealInfo(meals.lunch, 'lunch');
     const dInfo = getHeroMealInfo(meals.dinner, 'dinner');
 
+    const bDish = resolveDishWithImage(meals.breakfast?.single, allDishes);
+    const lDish = getFeaturedMealDish(meals.lunch, allDishes);
+    const dDish = getFeaturedMealDish(meals.dinner, allDishes);
+
     heroTodayContainer.innerHTML = `
       <div class="today-hero-card">
         <div class="today-hero-header">
@@ -358,8 +427,27 @@
               <span class="meal-tag-pill meal-breakfast"><i data-lucide="sun"></i> Sáng</span>
               ${meals.breakfast.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-            <div class="today-meal-box-food">${bInfo.dishHtml}</div>
-            <div class="today-meal-box-attendees">${bInfo.attendeesHtml}</div>
+            <div class="today-meal-box-main">
+              ${(bInfo.state === window.AppUtils.MEAL_DISPLAY_STATES.HAS_ATTENDEES || bInfo.state === window.AppUtils.MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE) ? `
+                <div class="today-meal-thumb-wrap" data-dish-id="${bDish?.id || ''}">
+                  ${bDish && bDish.image ? `
+                    <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(bDish) || '' : ''}" 
+                         alt="${window.AppUtils.escapeHtml(bDish.name || '')}" 
+                         class="today-meal-thumb-img" 
+                         loading="lazy"
+                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                         ${!window.ImageService?.getDishImageUrlSync(bDish) ? 'style="display:none;"' : ''} />
+                    <span class="today-meal-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(bDish) ? 'style="display:none;"' : ''}>🍳</span>
+                  ` : `
+                    <span class="today-meal-thumb-placeholder">${bDish ? '🍳' : '—'}</span>
+                  `}
+                </div>
+              ` : ''}
+              <div class="today-meal-info-col">
+                <div class="today-meal-box-food">${bInfo.dishHtml}</div>
+                <div class="today-meal-box-attendees">${bInfo.attendeesHtml}</div>
+              </div>
+            </div>
             ${bInfo.canToggle ? `
               <button type="button" class="btn btn-xs ${meals.breakfast.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="breakfast" data-date="${todayISO}">
                 <i data-lucide="${meals.breakfast.isEaten ? 'rotate-ccw' : 'check'}"></i>
@@ -374,8 +462,27 @@
               <span class="meal-tag-pill meal-lunch"><i data-lucide="sun-medium"></i> Trưa</span>
               ${meals.lunch.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-            <div class="today-meal-box-food">${lInfo.dishHtml}</div>
-            <div class="today-meal-box-attendees">${lInfo.attendeesHtml}</div>
+            <div class="today-meal-box-main">
+              ${(lInfo.state === window.AppUtils.MEAL_DISPLAY_STATES.HAS_ATTENDEES || lInfo.state === window.AppUtils.MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE) ? `
+                <div class="today-meal-thumb-wrap" data-dish-id="${lDish?.id || ''}">
+                  ${lDish && lDish.image ? `
+                    <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(lDish) || '' : ''}" 
+                         alt="${window.AppUtils.escapeHtml(lDish.name || '')}" 
+                         class="today-meal-thumb-img" 
+                         loading="lazy"
+                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                         ${!window.ImageService?.getDishImageUrlSync(lDish) ? 'style="display:none;"' : ''} />
+                    <span class="today-meal-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(lDish) ? 'style="display:none;"' : ''}>🍲</span>
+                  ` : `
+                    <span class="today-meal-thumb-placeholder">${lDish ? '🍲' : '—'}</span>
+                  `}
+                </div>
+              ` : ''}
+              <div class="today-meal-info-col">
+                <div class="today-meal-box-food">${lInfo.dishHtml}</div>
+                <div class="today-meal-box-attendees">${lInfo.attendeesHtml}</div>
+              </div>
+            </div>
             ${lInfo.canToggle ? `
               <button type="button" class="btn btn-xs ${meals.lunch.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="lunch" data-date="${todayISO}">
                 <i data-lucide="${meals.lunch.isEaten ? 'rotate-ccw' : 'check'}"></i>
@@ -390,8 +497,27 @@
               <span class="meal-tag-pill meal-dinner"><i data-lucide="moon"></i> Tối</span>
               ${meals.dinner.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-            <div class="today-meal-box-food">${dInfo.dishHtml}</div>
-            <div class="today-meal-box-attendees">${dInfo.attendeesHtml}</div>
+            <div class="today-meal-box-main">
+              ${(dInfo.state === window.AppUtils.MEAL_DISPLAY_STATES.HAS_ATTENDEES || dInfo.state === window.AppUtils.MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE) ? `
+                <div class="today-meal-thumb-wrap" data-dish-id="${dDish?.id || ''}">
+                  ${dDish && dDish.image ? `
+                    <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(dDish) || '' : ''}" 
+                         alt="${window.AppUtils.escapeHtml(dDish.name || '')}" 
+                         class="today-meal-thumb-img" 
+                         loading="lazy"
+                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                         ${!window.ImageService?.getDishImageUrlSync(dDish) ? 'style="display:none;"' : ''} />
+                    <span class="today-meal-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(dDish) ? 'style="display:none;"' : ''}>🍲</span>
+                  ` : `
+                    <span class="today-meal-thumb-placeholder">${dDish ? '🍲' : '—'}</span>
+                  `}
+                </div>
+              ` : ''}
+              <div class="today-meal-info-col">
+                <div class="today-meal-box-food">${dInfo.dishHtml}</div>
+                <div class="today-meal-box-attendees">${dInfo.attendeesHtml}</div>
+              </div>
+            </div>
             ${dInfo.canToggle ? `
               <button type="button" class="btn btn-xs ${meals.dinner.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="dinner" data-date="${todayISO}">
                 <i data-lucide="${meals.dinner.isEaten ? 'rotate-ccw' : 'check'}"></i>
@@ -431,6 +557,8 @@
     });
 
     window.AppUtils.initIcons();
+    hydrateMenuImages();
+  }
   }
 
   /**
@@ -503,6 +631,7 @@
 
     const todayISO = window.MenuGenerator.formatDateISO(new Date());
     const allMembers = window.StorageManager.getMembers();
+    const allDishes = window.StorageManager.getDishes();
 
     let html = '';
     displayedWeekMenu.days.forEach((day, dayIndex) => {
@@ -531,13 +660,13 @@
           <!-- 3 Meals Container -->
           <div class="day-meals-container">
             <!-- 1. BỮA SÁNG -->
-            ${renderMealSection(dayIndex, 'breakfast', 'Sáng', meals.breakfast, allMembers)}
+            ${renderMealSection(dayIndex, 'breakfast', 'Sáng', meals.breakfast, allMembers, allDishes)}
 
             <!-- 2. BỮA TRƯA -->
-            ${renderMealSection(dayIndex, 'lunch', 'Trưa', meals.lunch, allMembers)}
+            ${renderMealSection(dayIndex, 'lunch', 'Trưa', meals.lunch, allMembers, allDishes)}
 
             <!-- 3. BỮA TỐI -->
-            ${renderMealSection(dayIndex, 'dinner', 'Tối', meals.dinner, allMembers)}
+            ${renderMealSection(dayIndex, 'dinner', 'Tối', meals.dinner, allMembers, allDishes)}
           </div>
         </div>
       `;
@@ -546,12 +675,16 @@
     weekGrid.innerHTML = html;
     bindMealActionEvents();
     window.AppUtils.initIcons();
+    hydrateMenuImages();
   }
 
   /**
    * Render one of the 3 meal sections inside a day card
    */
-  function renderMealSection(dayIndex, mealKey, mealLabel, mealObj, allMembers) {
+  function renderMealSection(dayIndex, mealKey, mealLabel, mealObj, allMembers, allDishes = null) {
+    if (!allDishes) {
+      allDishes = window.StorageManager.getDishes();
+    }
     const isEaten = !!mealObj?.isEaten;
     const isOverride = !!mealObj?.attendance?.manualOverride;
     const state = window.AppUtils.getMealDisplayState(mealObj, allMembers);
@@ -604,21 +737,52 @@
       case window.AppUtils.MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE:
         attendeesHtml = `<span class="meal-legacy-att-tag"><i data-lucide="help-circle"></i> Chưa có dữ liệu người ăn</span>`;
         if (mealKey === 'breakfast') {
-          const dish = mealObj?.single;
+          const dish = resolveDishWithImage(mealObj?.single, allDishes);
           foodHtml = `
             <div class="meal-single-dish-row">
+              <div class="meal-dish-thumb-box" data-dish-id="${dish?.id || ''}">
+                ${dish && dish.image ? `
+                  <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(dish) || '' : ''}" 
+                       alt="${window.AppUtils.escapeHtml(dish.name || '')}" 
+                       class="meal-dish-thumb-img" 
+                       loading="lazy"
+                       onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                       ${!window.ImageService?.getDishImageUrlSync(dish) ? 'style="display:none;"' : ''} />
+                  <span class="meal-dish-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(dish) ? 'style="display:none;"' : ''}>🍳</span>
+                ` : `
+                  <span class="meal-dish-thumb-placeholder">${dish ? '🍳' : '—'}</span>
+                `}
+              </div>
               <div class="meal-dish-name">
                 ${dish && dish.name ? window.AppUtils.escapeHtml(dish.name) : '<span class="dish-slot-empty">Chưa có món</span>'}
               </div>
             </div>
           `;
         } else {
+          const featuredDish = getFeaturedMealDish(mealObj, allDishes);
           foodHtml = `
-            <div class="meal-family-slots">
-              ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
-              ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
-              ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
-              ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+            <div class="meal-family-layout">
+              <div class="meal-family-thumb-col">
+                <div class="meal-main-thumb-box" data-dish-id="${featuredDish?.id || ''}" title="${featuredDish ? window.AppUtils.escapeHtml(featuredDish.name) : ''}">
+                  ${featuredDish && featuredDish.image ? `
+                    <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(featuredDish) || '' : ''}" 
+                         alt="${window.AppUtils.escapeHtml(featuredDish.name || '')}" 
+                         class="meal-main-thumb-img" 
+                         loading="lazy"
+                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                         ${!window.ImageService?.getDishImageUrlSync(featuredDish) ? 'style="display:none;"' : ''} />
+                    <span class="meal-main-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(featuredDish) ? 'style="display:none;"' : ''}>🍲</span>
+                  ` : `
+                    <span class="meal-main-thumb-placeholder">🍲</span>
+                  `}
+                </div>
+              </div>
+              <div class="meal-family-slots">
+                ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
+                ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
+                ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
+                ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+              </div>
             </div>
           `;
         }
@@ -642,10 +806,23 @@
         `;
 
         if (mealKey === 'breakfast') {
-          const dish = mealObj?.single;
-          const isManual = !!dish?.manual;
+          const dish = resolveDishWithImage(mealObj?.single, allDishes);
+          const isManual = !!mealObj?.single?.manual;
           foodHtml = `
             <div class="meal-single-dish-row ${isManual ? 'is-manual' : ''}">
+              <div class="meal-dish-thumb-box" data-dish-id="${dish?.id || ''}">
+                ${dish && dish.image ? `
+                  <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(dish) || '' : ''}" 
+                       alt="${window.AppUtils.escapeHtml(dish.name || '')}" 
+                       class="meal-dish-thumb-img" 
+                       loading="lazy"
+                       onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                       ${!window.ImageService?.getDishImageUrlSync(dish) ? 'style="display:none;"' : ''} />
+                  <span class="meal-dish-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(dish) ? 'style="display:none;"' : ''}>🍳</span>
+                ` : `
+                  <span class="meal-dish-thumb-placeholder">${dish ? '🍳' : '—'}</span>
+                `}
+              </div>
               <div class="meal-dish-name">
                 ${dish && dish.name ? window.AppUtils.escapeHtml(dish.name) : '<span class="dish-slot-empty">Chưa có món</span>'}
                 ${isManual ? `<i data-lucide="lock" style="width: 12px; height: 12px; color: #8B5CF6;" title="Đã khóa món"></i>` : ''}
@@ -661,12 +838,30 @@
             </div>
           `;
         } else {
+          const featuredDish = getFeaturedMealDish(mealObj, allDishes);
           foodHtml = `
-            <div class="meal-family-slots">
-              ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
-              ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
-              ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
-              ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+            <div class="meal-family-layout">
+              <div class="meal-family-thumb-col">
+                <div class="meal-main-thumb-box" data-dish-id="${featuredDish?.id || ''}" title="${featuredDish ? window.AppUtils.escapeHtml(featuredDish.name) : ''}">
+                  ${featuredDish && featuredDish.image ? `
+                    <img src="${window.ImageService ? window.ImageService.getDishImageUrlSync(featuredDish) || '' : ''}" 
+                         alt="${window.AppUtils.escapeHtml(featuredDish.name || '')}" 
+                         class="meal-main-thumb-img" 
+                         loading="lazy"
+                         onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';"
+                         ${!window.ImageService?.getDishImageUrlSync(featuredDish) ? 'style="display:none;"' : ''} />
+                    <span class="meal-main-thumb-placeholder" ${window.ImageService?.getDishImageUrlSync(featuredDish) ? 'style="display:none;"' : ''}>🍲</span>
+                  ` : `
+                    <span class="meal-main-thumb-placeholder">🍲</span>
+                  `}
+                </div>
+              </div>
+              <div class="meal-family-slots">
+                ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
+                ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
+                ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
+                ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+              </div>
             </div>
           `;
         }
