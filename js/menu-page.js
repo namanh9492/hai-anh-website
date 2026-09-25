@@ -129,14 +129,17 @@
     const weekId = window.MenuGenerator.getWeekId(mondayDate);
     let menu = window.StorageManager.getMenuForWeek(weekId);
 
-    // If viewing current week and no menu exists yet, generate initial menu seamlessly
+    // If viewing current week and no menu exists yet, generate initial menu only if members are configured
     const isCurrentCalendarWeek = isCurrentWeek(mondayDate);
-    if (!menu && isCurrentCalendarWeek) {
+    const members = window.StorageManager.getMembers();
+    if (!menu && isCurrentCalendarWeek && members.length > 0) {
       const allDishes = window.StorageManager.getDishes();
       const prevMonday = window.MenuGenerator.getPreviousMonday(mondayDate);
       const prevWeekMenu = window.StorageManager.getMenuForWeek(window.MenuGenerator.getWeekId(prevMonday));
-      menu = window.MenuGenerator.generateWeeklyMenu(mondayDate, allDishes, null, prevWeekMenu);
-      window.StorageManager.saveMenuForWeek(weekId, menu);
+      menu = window.MenuGenerator.generateWeeklyMenu(mondayDate, allDishes, null, prevWeekMenu, members);
+      if (menu && menu.days && menu.days.length > 0) {
+        window.StorageManager.saveMenuForWeek(weekId, menu);
+      }
     }
 
     displayedWeekMenu = menu;
@@ -202,6 +205,29 @@
 
     const todayDate = new Date();
     const todayISO = window.MenuGenerator.formatDateISO(todayDate);
+    const allMembers = window.StorageManager.getMembers();
+
+    // Case 1: No members configured
+    if (!allMembers || allMembers.length === 0) {
+      heroTodayContainer.innerHTML = `
+        <div class="today-hero-card">
+          <div class="today-hero-header">
+            <div class="today-badge-group">
+              <span class="today-tag">Hôm nay</span>
+              <span class="today-date-text">${window.MenuGenerator.formatDateVN(todayDate)}</span>
+            </div>
+            <a href="members.html" class="btn btn-primary btn-sm">
+              <i data-lucide="user-plus"></i> Thiết lập thành viên
+            </a>
+          </div>
+          <p style="color: var(--muted-foreground); font-size: 0.92rem; margin-top: 6px;">
+            Gia đình chưa thiết lập danh sách thành viên. Vui lòng thiết lập thành viên và lịch ăn trước khi lên thực đơn.
+          </p>
+        </div>
+      `;
+      window.AppUtils.initIcons();
+      return;
+    }
 
     // Look for today's entry in currently displayed menu
     let todayDay = null;
@@ -253,44 +279,67 @@
     if (currentHour < 10) activeMeal = 'breakfast';
     else if (currentHour < 14) activeMeal = 'lunch';
 
-    const allMembers = window.StorageManager.getMembers();
     const meals = todayDay.meals || {
       breakfast: { single: null, attendance: { memberIds: [] }, isEaten: false },
       lunch: { main: null, vegetable: null, soup: null, side: null, attendance: { memberIds: [] }, isEaten: false },
       dinner: { main: todayDay.main, vegetable: todayDay.vegetable, soup: todayDay.soup, side: todayDay.side, attendance: todayDay.attendance?.dinner || { memberIds: [] }, isEaten: todayDay.isEaten }
     };
 
-    // Helper to format attendees
-    const getAttendeeText = (mealObj) => {
-      const ids = mealObj?.attendance?.memberIds || [];
-      if (ids.length === 0) return 'Không ăn tại nhà';
-      return ids.map(id => {
-        const m = allMembers.find(mem => mem.id === id);
-        return m ? m.name : 'Thành viên cũ';
-      }).join(' · ');
+    // Centralized meal state representation for Hero
+    const getHeroMealInfo = (mealObj, mealKey) => {
+      const state = window.AppUtils.getMealDisplayState(mealObj, allMembers);
+      let attendeesHtml = '';
+      let dishHtml = '';
+      let canToggle = false;
+
+      switch (state) {
+        case window.AppUtils.MEAL_DISPLAY_STATES.NO_MEMBERS_CONFIGURED:
+          attendeesHtml = `<span class="meal-no-members-tag"><i data-lucide="user-x"></i> Chưa thiết lập thành viên</span>`;
+          dishHtml = `<span class="dish-slot-empty">Chưa thiết lập thành viên</span>`;
+          break;
+
+        case window.AppUtils.MEAL_DISPLAY_STATES.NOT_EATING_AT_HOME:
+          attendeesHtml = `<span class="meal-no-attendance-tag"><i data-lucide="home"></i> Không ăn tại nhà</span>`;
+          dishHtml = `<span class="dish-slot-empty">Không ăn tại nhà</span>`;
+          break;
+
+        case window.AppUtils.MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE:
+          attendeesHtml = `<span class="meal-legacy-att-tag"><i data-lucide="help-circle"></i> Chưa có dữ liệu người ăn</span>`;
+          dishHtml = formatHeroDishesText(mealObj, mealKey);
+          canToggle = true;
+          break;
+
+        case window.AppUtils.MEAL_DISPLAY_STATES.HAS_ATTENDEES:
+        default:
+          const ids = mealObj?.attendance?.memberIds || [];
+          const names = ids.map(id => {
+            const m = allMembers.find(mem => mem.id === id);
+            return m ? m.name : 'Thành viên cũ';
+          }).join(' · ');
+          attendeesHtml = `<i data-lucide="users"></i> <span>${window.AppUtils.escapeHtml(names)}</span>`;
+          dishHtml = formatHeroDishesText(mealObj, mealKey);
+          canToggle = true;
+          break;
+      }
+
+      return { state, attendeesHtml, dishHtml, canToggle };
     };
 
-    // Breakfast summary
-    const bAttendees = getAttendeeText(meals.breakfast);
-    const bDish = meals.breakfast?.single ? window.AppUtils.escapeHtml(meals.breakfast.single.name) : (meals.breakfast?.attendance?.memberIds?.length === 0 ? 'Không ăn tại nhà' : 'Chưa có món');
+    const formatHeroDishesText = (mealObj, mealKey) => {
+      if (mealKey === 'breakfast') {
+        return mealObj?.single ? window.AppUtils.escapeHtml(mealObj.single.name) : '<span class="dish-slot-empty">Chưa có món</span>';
+      }
+      const list = [];
+      if (mealObj?.main) list.push(mealObj.main.name);
+      if (mealObj?.vegetable) list.push(mealObj.vegetable.name);
+      if (mealObj?.soup) list.push(mealObj.soup.name);
+      if (mealObj?.side) list.push(mealObj.side.name);
+      return list.length > 0 ? window.AppUtils.escapeHtml(list.join(' · ')) : '<span class="dish-slot-empty">Chưa có món</span>';
+    };
 
-    // Lunch summary
-    const lAttendees = getAttendeeText(meals.lunch);
-    let lDishes = [];
-    if (meals.lunch?.main) lDishes.push(meals.lunch.main.name);
-    if (meals.lunch?.vegetable) lDishes.push(meals.lunch.vegetable.name);
-    if (meals.lunch?.soup) lDishes.push(meals.lunch.soup.name);
-    if (meals.lunch?.side) lDishes.push(meals.lunch.side.name);
-    const lDishText = lDishes.length > 0 ? window.AppUtils.escapeHtml(lDishes.join(' · ')) : (meals.lunch?.attendance?.memberIds?.length === 0 ? 'Không ăn tại nhà' : 'Chưa có món');
-
-    // Dinner summary
-    const dAttendees = getAttendeeText(meals.dinner);
-    let dDishes = [];
-    if (meals.dinner?.main) dDishes.push(meals.dinner.main.name);
-    if (meals.dinner?.vegetable) dDishes.push(meals.dinner.vegetable.name);
-    if (meals.dinner?.soup) dDishes.push(meals.dinner.soup.name);
-    if (meals.dinner?.side) dDishes.push(meals.dinner.side.name);
-    const dDishText = dDishes.length > 0 ? window.AppUtils.escapeHtml(dDishes.join(' · ')) : (meals.dinner?.attendance?.memberIds?.length === 0 ? 'Không ăn tại nhà' : 'Chưa có món');
+    const bInfo = getHeroMealInfo(meals.breakfast, 'breakfast');
+    const lInfo = getHeroMealInfo(meals.lunch, 'lunch');
+    const dInfo = getHeroMealInfo(meals.dinner, 'dinner');
 
     heroTodayContainer.innerHTML = `
       <div class="today-hero-card">
@@ -309,9 +358,9 @@
               <span class="meal-tag-pill meal-breakfast"><i data-lucide="sun"></i> Sáng</span>
               ${meals.breakfast.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-            <div class="today-meal-box-food">${bDish}</div>
-            <div class="today-meal-box-attendees"><i data-lucide="users"></i> ${window.AppUtils.escapeHtml(bAttendees)}</div>
-            ${meals.breakfast?.attendance?.memberIds?.length > 0 ? `
+            <div class="today-meal-box-food">${bInfo.dishHtml}</div>
+            <div class="today-meal-box-attendees">${bInfo.attendeesHtml}</div>
+            ${bInfo.canToggle ? `
               <button type="button" class="btn btn-xs ${meals.breakfast.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="breakfast" data-date="${todayISO}">
                 <i data-lucide="${meals.breakfast.isEaten ? 'rotate-ccw' : 'check'}"></i>
                 ${meals.breakfast.isEaten ? 'Chưa ăn' : 'Đã ăn'}
@@ -325,9 +374,9 @@
               <span class="meal-tag-pill meal-lunch"><i data-lucide="sun-medium"></i> Trưa</span>
               ${meals.lunch.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-            <div class="today-meal-box-food">${lDishText}</div>
-            <div class="today-meal-box-attendees"><i data-lucide="users"></i> ${window.AppUtils.escapeHtml(lAttendees)}</div>
-            ${meals.lunch?.attendance?.memberIds?.length > 0 ? `
+            <div class="today-meal-box-food">${lInfo.dishHtml}</div>
+            <div class="today-meal-box-attendees">${lInfo.attendeesHtml}</div>
+            ${lInfo.canToggle ? `
               <button type="button" class="btn btn-xs ${meals.lunch.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="lunch" data-date="${todayISO}">
                 <i data-lucide="${meals.lunch.isEaten ? 'rotate-ccw' : 'check'}"></i>
                 ${meals.lunch.isEaten ? 'Chưa ăn' : 'Đã ăn'}
@@ -341,9 +390,9 @@
               <span class="meal-tag-pill meal-dinner"><i data-lucide="moon"></i> Tối</span>
               ${meals.dinner.isEaten ? '<span class="badge badge-enabled"><i data-lucide="check"></i> Đã ăn</span>' : ''}
             </div>
-            <div class="today-meal-box-food">${dDishText}</div>
-            <div class="today-meal-box-attendees"><i data-lucide="users"></i> ${window.AppUtils.escapeHtml(dAttendees)}</div>
-            ${meals.dinner?.attendance?.memberIds?.length > 0 ? `
+            <div class="today-meal-box-food">${dInfo.dishHtml}</div>
+            <div class="today-meal-box-attendees">${dInfo.attendeesHtml}</div>
+            ${dInfo.canToggle ? `
               <button type="button" class="btn btn-xs ${meals.dinner.isEaten ? 'btn-outline' : 'btn-soft'} btn-hero-toggle-meal" data-meal="dinner" data-date="${todayISO}">
                 <i data-lucide="${meals.dinner.isEaten ? 'rotate-ccw' : 'check'}"></i>
                 ${meals.dinner.isEaten ? 'Chưa ăn' : 'Đã ăn'}
@@ -399,7 +448,32 @@
   function renderWeekGrid() {
     if (!weekGrid) return;
 
+    const allMembers = window.StorageManager.getMembers();
+
     if (!displayedWeekMenu || !Array.isArray(displayedWeekMenu.days) || displayedWeekMenu.days.length === 0) {
+      if (allMembers.length === 0) {
+        weekGrid.innerHTML = `
+          <div class="card" style="grid-column: 1 / -1; padding: 40px; text-align: center;">
+            <div class="empty-state">
+              <div class="empty-state-icon">
+                <i data-lucide="users"></i>
+              </div>
+              <h3 class="empty-state-title">Chưa thiết lập thành viên</h3>
+              <p class="empty-state-desc">
+                Gia đình chưa thiết lập danh sách thành viên. Vui lòng thiết lập thành viên và lịch ăn trước khi lên thực đơn.
+              </p>
+              <div style="display: flex; gap: 10px; justify-content: center; margin-top: 16px;">
+                <a href="members.html" class="btn btn-primary">
+                  <i data-lucide="user-plus"></i> Thiết lập thành viên
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+        window.AppUtils.initIcons();
+        return;
+      }
+
       weekGrid.innerHTML = `
         <div class="card" style="grid-column: 1 / -1; padding: 40px; text-align: center;">
           <div class="empty-state">
@@ -479,27 +553,12 @@
    */
   function renderMealSection(dayIndex, mealKey, mealLabel, mealObj, allMembers) {
     const isEaten = !!mealObj?.isEaten;
-    const memberIds = mealObj?.attendance?.memberIds || [];
     const isOverride = !!mealObj?.attendance?.manualOverride;
-    const hasAttendees = memberIds.length > 0;
+    const state = window.AppUtils.getMealDisplayState(mealObj, allMembers);
 
-    // Build attendees display
     let attendeesHtml = '';
-    if (!hasAttendees) {
-      attendeesHtml = `<span class="meal-no-attendance-tag"><i data-lucide="home"></i> Không ăn tại nhà</span>`;
-    } else {
-      const names = memberIds.map(id => {
-        const m = allMembers.find(mem => mem.id === id);
-        return m ? window.AppUtils.escapeHtml(m.name) : 'Thành viên cũ';
-      }).join(' · ');
-      attendeesHtml = `
-        <div class="meal-attendees-chips">
-          <i data-lucide="users"></i>
-          <span class="meal-attendees-text" title="${names}">Người ăn: <strong>${names}</strong></span>
-          ${isOverride ? `<span class="badge-attendance-override" title="Chỉnh riêng so với lịch mặc định">Chỉnh riêng</span>` : ''}
-        </div>
-      `;
-    }
+    let foodHtml = '';
+    let showEatenFooter = false;
 
     // Icon & class per meal
     let iconName = 'sun';
@@ -512,44 +571,107 @@
       pillClass = 'meal-dinner';
     }
 
-    // Dish content
-    let foodHtml = '';
-    if (!hasAttendees) {
-      foodHtml = `
-        <div class="meal-empty-notice">
-          <span>Không ăn tại nhà</span>
-        </div>
-      `;
-    } else if (mealKey === 'breakfast') {
-      // Single dish breakfast
-      const dish = mealObj?.single;
-      const isManual = !!dish?.manual;
-      foodHtml = `
-        <div class="meal-single-dish-row ${isManual ? 'is-manual' : ''}">
-          <div class="meal-dish-name">
-            ${dish && dish.name ? window.AppUtils.escapeHtml(dish.name) : '<span class="dish-slot-empty">Chưa có món</span>'}
-            ${isManual ? `<i data-lucide="lock" style="width: 12px; height: 12px; color: #8B5CF6;" title="Đã khóa món"></i>` : ''}
+    switch (state) {
+      case window.AppUtils.MEAL_DISPLAY_STATES.NO_MEMBERS_CONFIGURED:
+        attendeesHtml = `
+          <div class="meal-attendees-chips">
+            <span class="meal-no-members-tag">
+              <i data-lucide="user-x"></i> Chưa thiết lập thành viên
+            </span>
+            <a href="members.html" class="meal-setup-link" title="Thiết lập thành viên">
+              <i data-lucide="external-link"></i> Thiết lập
+            </a>
           </div>
-          <div class="meal-actions-group">
-            <button type="button" class="btn btn-ghost btn-xs btn-swap-meal-slot" data-day="${dayIndex}" data-meal="breakfast" data-slot="single" title="Đổi món ăn sáng khác">
-              <i data-lucide="refresh-cw"></i> <span>Đổi</span>
-            </button>
-            <button type="button" class="btn btn-ghost btn-xs btn-edit-meal-slot" data-day="${dayIndex}" data-meal="breakfast" data-slot="single" title="Sửa thủ công">
-              <i data-lucide="pencil"></i> <span>Sửa</span>
-            </button>
+        `;
+        foodHtml = `
+          <div class="meal-empty-notice">
+            <span>Chưa thiết lập thành viên</span>
           </div>
-        </div>
-      `;
-    } else {
-      // Lunch / Dinner family slots
-      foodHtml = `
-        <div class="meal-family-slots">
-          ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
-          ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
-          ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
-          ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
-        </div>
-      `;
+        `;
+        showEatenFooter = false;
+        break;
+
+      case window.AppUtils.MEAL_DISPLAY_STATES.NOT_EATING_AT_HOME:
+        attendeesHtml = `<span class="meal-no-attendance-tag"><i data-lucide="home"></i> Không ăn tại nhà</span>`;
+        foodHtml = `
+          <div class="meal-empty-notice">
+            <span>Không ăn tại nhà</span>
+          </div>
+        `;
+        showEatenFooter = false;
+        break;
+
+      case window.AppUtils.MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE:
+        attendeesHtml = `<span class="meal-legacy-att-tag"><i data-lucide="help-circle"></i> Chưa có dữ liệu người ăn</span>`;
+        if (mealKey === 'breakfast') {
+          const dish = mealObj?.single;
+          foodHtml = `
+            <div class="meal-single-dish-row">
+              <div class="meal-dish-name">
+                ${dish && dish.name ? window.AppUtils.escapeHtml(dish.name) : '<span class="dish-slot-empty">Chưa có món</span>'}
+              </div>
+            </div>
+          `;
+        } else {
+          foodHtml = `
+            <div class="meal-family-slots">
+              ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
+              ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
+              ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
+              ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+            </div>
+          `;
+        }
+        showEatenFooter = true;
+        break;
+
+      case window.AppUtils.MEAL_DISPLAY_STATES.HAS_ATTENDEES:
+      default:
+        const memberIds = mealObj?.attendance?.memberIds || [];
+        const names = memberIds.map(id => {
+          const m = allMembers.find(mem => mem.id === id);
+          return m ? window.AppUtils.escapeHtml(m.name) : 'Thành viên cũ';
+        }).join(' · ');
+
+        attendeesHtml = `
+          <div class="meal-attendees-chips">
+            <i data-lucide="users"></i>
+            <span class="meal-attendees-text" title="${names}">Người ăn: <strong>${names}</strong></span>
+            ${isOverride ? `<span class="badge-attendance-override" title="Chỉnh riêng so với lịch mặc định">Chỉnh riêng</span>` : ''}
+          </div>
+        `;
+
+        if (mealKey === 'breakfast') {
+          const dish = mealObj?.single;
+          const isManual = !!dish?.manual;
+          foodHtml = `
+            <div class="meal-single-dish-row ${isManual ? 'is-manual' : ''}">
+              <div class="meal-dish-name">
+                ${dish && dish.name ? window.AppUtils.escapeHtml(dish.name) : '<span class="dish-slot-empty">Chưa có món</span>'}
+                ${isManual ? `<i data-lucide="lock" style="width: 12px; height: 12px; color: #8B5CF6;" title="Đã khóa món"></i>` : ''}
+              </div>
+              <div class="meal-actions-group">
+                <button type="button" class="btn btn-ghost btn-xs btn-swap-meal-slot" data-day="${dayIndex}" data-meal="breakfast" data-slot="single" title="Đổi món ăn sáng khác">
+                  <i data-lucide="refresh-cw"></i> <span>Đổi</span>
+                </button>
+                <button type="button" class="btn btn-ghost btn-xs btn-edit-meal-slot" data-day="${dayIndex}" data-meal="breakfast" data-slot="single" title="Sửa thủ công">
+                  <i data-lucide="pencil"></i> <span>Sửa</span>
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          foodHtml = `
+            <div class="meal-family-slots">
+              ${renderFamilyDishRow(dayIndex, mealKey, 'main', 'Món chính', mealObj?.main)}
+              ${renderFamilyDishRow(dayIndex, mealKey, 'vegetable', 'Rau', mealObj?.vegetable)}
+              ${renderFamilyDishRow(dayIndex, mealKey, 'soup', 'Canh', mealObj?.soup)}
+              ${renderFamilyDishRow(dayIndex, mealKey, 'side', 'Món phụ', mealObj?.side, true)}
+            </div>
+          `;
+        }
+        showEatenFooter = true;
+        break;
     }
 
     return `
@@ -577,7 +699,7 @@
           ${foodHtml}
         </div>
 
-        ${hasAttendees ? `
+        ${showEatenFooter ? `
           <div class="meal-section-footer">
             <label class="meal-eaten-toggle">
               <input type="checkbox" class="toggle-meal-eaten-checkbox" data-day="${dayIndex}" data-meal="${mealKey}" ${isEaten ? 'checked' : ''}>
@@ -749,6 +871,12 @@
    * Handle Generate Menu Button Click for Current Week
    */
   function handleGenerateMenuClick() {
+    const members = window.StorageManager.getMembers();
+    if (!members || members.length === 0) {
+      window.AppUtils.showToast('Hãy thêm thành viên và lịch ăn trước khi lên thực đơn.', 'error');
+      return;
+    }
+
     const weekId = window.MenuGenerator.getWeekId(currentMonday);
     const existingMenu = window.StorageManager.getMenuForWeek(weekId);
 
@@ -775,6 +903,12 @@
    * Handle Generate Menu Button Click for NEXT Week
    */
   function handleGenerateNextWeekClick() {
+    const members = window.StorageManager.getMembers();
+    if (!members || members.length === 0) {
+      window.AppUtils.showToast('Hãy thêm thành viên và lịch ăn trước khi lên thực đơn.', 'error');
+      return;
+    }
+
     const nextMonday = window.MenuGenerator.getNextMonday(new Date());
     const nextWeekId = window.MenuGenerator.getWeekId(nextMonday);
     const existingNextMenu = window.StorageManager.getMenuForWeek(nextWeekId);
@@ -802,6 +936,12 @@
    * Core generator call for Next Week
    */
   function generateAndSwitchToNextWeek(preserveExisting = true) {
+    const members = window.StorageManager.getMembers();
+    if (!members || members.length === 0) {
+      window.AppUtils.showToast('Hãy thêm thành viên và lịch ăn trước khi lên thực đơn.', 'error');
+      return;
+    }
+
     const allDishes = window.StorageManager.getDishes();
     const enabledDishes = allDishes.filter(d => d.enabled);
 
@@ -816,7 +956,12 @@
     const thisWeekMenu = window.StorageManager.getMenuForWeek(window.MenuGenerator.getWeekId(thisMonday));
     const currentExisting = preserveExisting ? window.StorageManager.getMenuForWeek(nextWeekId) : null;
 
-    const newNextMenu = window.MenuGenerator.generateWeeklyMenu(nextMonday, allDishes, currentExisting, thisWeekMenu);
+    const newNextMenu = window.MenuGenerator.generateWeeklyMenu(nextMonday, allDishes, currentExisting, thisWeekMenu, members);
+    if (!newNextMenu || newNextMenu.generated === false) {
+      window.AppUtils.showToast('Hãy thêm thành viên và lịch ăn trước khi lên thực đơn.', 'error');
+      return;
+    }
+
     window.StorageManager.saveMenuForWeek(nextWeekId, newNextMenu);
     window.StorageManager.syncDishLastUsedAtFromMenus();
 
@@ -829,6 +974,12 @@
    * Core generator call for current week view
    */
   function generateNewMenuForCurrentWeek(preserveManual = true) {
+    const members = window.StorageManager.getMembers();
+    if (!members || members.length === 0) {
+      window.AppUtils.showToast('Hãy thêm thành viên và lịch ăn trước khi lên thực đơn.', 'error');
+      return;
+    }
+
     const allDishes = window.StorageManager.getDishes();
     const enabledDishes = allDishes.filter(d => d.enabled);
 
@@ -841,7 +992,12 @@
     const prevWeekMenu = window.StorageManager.getMenuForWeek(window.MenuGenerator.getWeekId(prevMonday));
     const currentExisting = preserveManual ? displayedWeekMenu : null;
 
-    const newMenu = window.MenuGenerator.generateWeeklyMenu(currentMonday, allDishes, currentExisting, prevWeekMenu);
+    const newMenu = window.MenuGenerator.generateWeeklyMenu(currentMonday, allDishes, currentExisting, prevWeekMenu, members);
+    if (!newMenu || newMenu.generated === false) {
+      window.AppUtils.showToast('Hãy thêm thành viên và lịch ăn trước khi lên thực đơn.', 'error');
+      return;
+    }
+
     displayedWeekMenu = newMenu;
     window.StorageManager.saveMenuForWeek(newMenu.weekId, newMenu);
     window.StorageManager.syncDishLastUsedAtFromMenus();

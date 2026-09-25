@@ -1055,7 +1055,165 @@ assert(nextMonBoundary.getFullYear() === 2027 && nextMonBoundary.getMonth() === 
 const nextWeekIdBoundary = window.MenuGenerator.getWeekId(nextMonBoundary);
 assert(nextWeekIdBoundary === '2027-01-04', `Boundary weekId correctly formatted: ${nextWeekIdBoundary}`);
 
-console.log('\n🎉 ALL SUITES 1-11 AND ALL PHASE 2 TESTS PASSED 100% PERFECTLY!\n');
+// Test 17 – No members configured
+console.log('\n- Phase 2 Test 17: No members configured');
+const test17Dishes = window.StorageManager.getDishes();
+const test17Result = window.MenuGenerator.generateWeeklyMenu('2026-10-12', test17Dishes, null, null, []);
+assert(test17Result.generated === false, 'Generator refuses to generate menu when members = []');
+assert(test17Result.reason === 'no_members' || test17Result.error === 'no_members', 'Returns reason: no_members');
+assert(Array.isArray(test17Result.days) && test17Result.days.length === 0, 'No dishes created (days is empty)');
+
+// Test 18 – Empty attendance clears auto meal
+console.log('\n- Phase 2 Test 18: Empty attendance clears auto meal');
+const memberWithNoMonMeals = {
+  id: 'mem_test18',
+  name: 'Thành viên Test 18',
+  portionSize: 'standard',
+  mealSchedule: {
+    monday: { breakfast: false, lunch: false, dinner: false },
+    tuesday: { breakfast: true, lunch: true, dinner: true },
+    wednesday: { breakfast: true, lunch: true, dinner: true },
+    thursday: { breakfast: true, lunch: true, dinner: true },
+    friday: { breakfast: true, lunch: true, dinner: true },
+    saturday: { breakfast: true, lunch: true, dinner: true },
+    sunday: { breakfast: true, lunch: true, dinner: true }
+  }
+};
+const test18Menu = window.MenuGenerator.generateWeeklyMenu('2026-10-12', test17Dishes, null, null, [memberWithNoMonMeals]);
+const monMeals = test18Menu.days[0].meals;
+assert(monMeals.breakfast.single === null, 'Breakfast single dish is null when attendance = 0');
+assert(monMeals.lunch.main === null, 'Lunch main is null when attendance = 0');
+assert(monMeals.lunch.vegetable === null, 'Lunch vegetable is null when attendance = 0');
+assert(monMeals.lunch.soup === null, 'Lunch soup is null when attendance = 0');
+assert(monMeals.lunch.side === null, 'Lunch side is null when attendance = 0');
+assert(monMeals.dinner.main === null, 'Dinner main is null when attendance = 0');
+assert(monMeals.dinner.vegetable === null, 'Dinner vegetable is null when attendance = 0');
+assert(monMeals.dinner.soup === null, 'Dinner soup is null when attendance = 0');
+assert(monMeals.dinner.side === null, 'Dinner side is null when attendance = 0');
+
+// Test 19 – Legacy eaten meal preserved
+console.log('\n- Phase 2 Test 19: Legacy eaten meal preserved');
+const legacyEatenMenu = {
+  weekId: '2026-08-10',
+  days: [
+    {
+      date: '2026-08-10',
+      dayLabel: 'Thứ Hai',
+      isEaten: true,
+      main: { id: 'dish_m1', name: 'Thịt kho tàu' },
+      vegetable: { id: 'dish_v1', name: 'Rau muống luộc' },
+      soup: { id: 'dish_s1', name: 'Canh rau ngót' }
+      // No attendance
+    }
+  ]
+};
+window.StorageManager.saveMenuForWeek('2026-08-10', legacyEatenMenu);
+const loadedLegacyMenu = window.StorageManager.getMenuForWeek('2026-08-10');
+assert(loadedLegacyMenu.days[0].meals.dinner.main.id === 'dish_m1', 'Legacy dinner dishes unchanged');
+assert(loadedLegacyMenu.days[0].meals.dinner.isEaten === true, 'Legacy dinner isEaten is true');
+assert(loadedLegacyMenu.days[0].meals.dinner.attendance.attendanceStatus === 'unknown', 'Legacy eaten meal attendanceStatus is unknown');
+assert(loadedLegacyMenu.days[0].meals.dinner.attendance.memberIds.length === 0, 'Does not assign current members to historical eaten meal');
+const legacyDisplayState = window.AppUtils.getMealDisplayState(loadedLegacyMenu.days[0].meals.dinner, [memberWithNoMonMeals]);
+assert(legacyDisplayState === 'UNKNOWN_LEGACY_ATTENDANCE', 'Legacy eaten meal display state is UNKNOWN_LEGACY_ATTENDANCE');
+
+// Test 20 – Legacy future meal repair
+console.log('\n- Phase 2 Test 20: Legacy future meal repair');
+const legacyFutureMenu = {
+  weekId: '2026-10-19',
+  days: [
+    {
+      date: '2026-10-19',
+      dayLabel: 'Thứ Hai',
+      isEaten: false,
+      meals: {
+        dinner: {
+          main: { id: 'dish_m1', name: 'Thịt kho tàu' },
+          vegetable: { id: 'dish_v1', name: 'Rau muống luộc' },
+          soup: { id: 'dish_s1', name: 'Canh cải' },
+          isEaten: false,
+          attendance: { memberIds: [], manualOverride: false }
+        }
+      }
+    }
+  ]
+};
+const threeDinnerMembers = [
+  { id: 'm1', name: 'Bố', mealSchedule: { monday: { dinner: true } } },
+  { id: 'm2', name: 'Mẹ', mealSchedule: { monday: { dinner: true } } },
+  { id: 'm3', name: 'Con', mealSchedule: { monday: { dinner: true } } }
+];
+const repairedMenu = window.MenuGenerator.generateWeeklyMenu('2026-10-19', test17Dishes, legacyFutureMenu, null, threeDinnerMembers);
+const repDay = repairedMenu.days[0];
+assert(repDay.meals.dinner.attendance.memberIds.length === 3, 'Repaired dinner snapshots 3 attendees from schedule');
+assert(repDay.meals.dinner.main !== null, 'Repaired dinner generates valid main dish');
+assert(repDay.meals.dinner.vegetable !== null, 'Repaired dinner generates valid vegetable dish');
+
+const zeroDinnerMembers = [
+  { id: 'm1', name: 'Bố', mealSchedule: { monday: { dinner: false } } }
+];
+const clearedMenu = window.MenuGenerator.generateWeeklyMenu('2026-10-19', test17Dishes, legacyFutureMenu, null, zeroDinnerMembers);
+assert(clearedMenu.days[0].meals.dinner.attendance.memberIds.length === 0, 'Repaired dinner has 0 attendees');
+assert(clearedMenu.days[0].meals.dinner.main === null, 'Repaired dinner dishes cleared when schedule = 0');
+assert(clearedMenu.days[0].meals.dinner.vegetable === null, 'Repaired dinner vegetable cleared when schedule = 0');
+
+// Test 21 – Hero and week state agree
+console.log('\n- Phase 2 Test 21: Hero and week state agree');
+const test21Members = [{ id: 'mem1', name: 'Thành viên 1' }];
+const fixtureEatingAtHome = {
+  isEaten: false,
+  main: { id: 'dish_m1', name: 'Cá kho tộ' },
+  attendance: { memberIds: ['mem1'] }
+};
+const fixtureNotEating = {
+  isEaten: false,
+  main: { id: 'dish_m1', name: 'Cá kho tộ' },
+  attendance: { memberIds: [] }
+};
+const heroState1 = window.AppUtils.getMealDisplayState(fixtureEatingAtHome, test21Members);
+const weekState1 = window.AppUtils.getMealDisplayState(fixtureEatingAtHome, test21Members);
+assert(heroState1 === 'HAS_ATTENDEES' && weekState1 === 'HAS_ATTENDEES', 'Both Hero and Week card return HAS_ATTENDEES');
+
+const heroState2 = window.AppUtils.getMealDisplayState(fixtureNotEating, test21Members);
+const weekState2 = window.AppUtils.getMealDisplayState(fixtureNotEating, test21Members);
+assert(heroState2 === 'NOT_EATING_AT_HOME' && weekState2 === 'NOT_EATING_AT_HOME', 'Both Hero and Week card return NOT_EATING_AT_HOME');
+
+// Test 22 – Shopping ignores empty attendance despite stale dish
+console.log('\n- Phase 2 Test 22: Shopping ignores empty attendance despite stale dish');
+const fixtureStaleDishMeal = {
+  weekId: '2026-10-26',
+  days: [
+    {
+      date: '2026-10-26',
+      dayLabel: 'Thứ Hai',
+      meals: {
+        dinner: {
+          main: { id: 'dish_recipe_test', name: 'Cá kho tộ' },
+          attendance: { memberIds: [] },
+          isEaten: false
+        }
+      }
+    }
+  ]
+};
+const staleShoppingRes = window.ShoppingService.aggregateWeeklyIngredients(fixtureStaleDishMeal, window.StorageManager.getDishes(), test21Members);
+assert(staleShoppingRes.totalItems === 0, 'Shopping totalItems is 0 despite stale dish');
+assert(staleShoppingRes.items.length === 0, 'Shopping items array is empty');
+assert(staleShoppingRes.mealsCount === 0, 'Attending meals count is 0');
+
+// Test 23 – Canonical meals source
+console.log('\n- Phase 2 Test 23: Canonical meals source');
+const test23Monday = '2026-11-02';
+const test23Menu = window.MenuGenerator.generateWeeklyMenu(test23Monday, test17Dishes, null, null, test21Members);
+const customDish = { id: 'dish_canonical_test', name: 'Món Canonical Mới', category: 'main' };
+test23Menu.days[0].meals.dinner.main = customDish;
+window.StorageManager.saveMenuForWeek(test23Monday, test23Menu);
+const loaded23Menu = window.StorageManager.getMenuForWeek(test23Monday);
+
+assert(loaded23Menu.days[0].meals.dinner.main.id === 'dish_canonical_test', 'Canonical day.meals.dinner.main has updated dish');
+assert(loaded23Menu.days[0].main.id === 'dish_canonical_test', 'Compatibility alias day.main strictly reflects canonical value');
+assert(loaded23Menu.days[0].main.name === loaded23Menu.days[0].meals.dinner.main.name, 'Alias and canonical name match identically');
+
+console.log('\n🎉 ALL SUITES 1-11 AND ALL PHASE 2 TESTS 1-23 PASSED 100% PERFECTLY!\n');
 
 
 

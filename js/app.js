@@ -431,6 +431,47 @@
     });
   }
 
+  // Centralized Meal Display Invariant States
+  const MEAL_DISPLAY_STATES = {
+    NO_MEMBERS_CONFIGURED: 'NO_MEMBERS_CONFIGURED',
+    NOT_EATING_AT_HOME: 'NOT_EATING_AT_HOME',
+    UNKNOWN_LEGACY_ATTENDANCE: 'UNKNOWN_LEGACY_ATTENDANCE',
+    HAS_ATTENDEES: 'HAS_ATTENDEES'
+  };
+
+  /**
+   * Determine the exact semantic display state of a meal.
+   * Centralized invariant across Today Hero, Week Cards, Shopping, and Editor.
+   * 
+   * @param {Object} meal - meal object (e.g. day.meals.breakfast | lunch | dinner)
+   * @param {Array} members - list of members from StorageManager.getMembers()
+   * @returns {string} State from MEAL_DISPLAY_STATES
+   */
+  function getMealDisplayState(meal, members = []) {
+    const hasDishes = !!(meal && (meal.single || meal.main || meal.vegetable || meal.soup));
+    const isEaten = !!(meal && meal.isEaten);
+    const memberIds = (meal && meal.attendance && Array.isArray(meal.attendance.memberIds)) ? meal.attendance.memberIds : [];
+    const attendanceStatus = meal?.attendance?.attendanceStatus;
+
+    // 1. If meal has historical dishes (migrated from V1 or marked eaten) but attendance is empty/unknown:
+    if (hasDishes && (attendanceStatus === 'unknown' || (isEaten && memberIds.length === 0))) {
+      return MEAL_DISPLAY_STATES.UNKNOWN_LEGACY_ATTENDANCE;
+    }
+
+    // 2. If no members are configured in the family:
+    if (!Array.isArray(members) || members.length === 0) {
+      return MEAL_DISPLAY_STATES.NO_MEMBERS_CONFIGURED;
+    }
+
+    // 3. If members are configured and this meal has attending member IDs:
+    if (memberIds.length > 0) {
+      return MEAL_DISPLAY_STATES.HAS_ATTENDEES;
+    }
+
+    // 4. If members are configured but no one is attending this meal:
+    return MEAL_DISPLAY_STATES.NOT_EATING_AT_HOME;
+  }
+
   // Export
   window.AppUtils = {
     DISH_CATEGORIES,
@@ -440,6 +481,8 @@
     SUPPORTED_UNITS,
     DAYS_OF_WEEK,
     MEAL_TYPES,
+    MEAL_DISPLAY_STATES,
+    getMealDisplayState,
     calculateAge,
     createDefaultMealSchedule,
     calculateMealServings,

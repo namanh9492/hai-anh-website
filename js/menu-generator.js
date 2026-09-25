@@ -260,7 +260,7 @@
      * @param {Array|null} allMembers
      * @returns {Object} Complete week menu object
      */
-    generateWeeklyMenu(mondayDate, allDishes, existingMenu = null, prevWeekMenu = null, allMembers = null) {
+    generateWeeklyMenu(mondayDate, allDishes, existingMenu = null, prevWeekMenu = null, allMembers = null, options = {}) {
       const monday = this.getMonday(mondayDate);
       const weekId = this.getWeekId(monday);
       const weekDates = this.getWeekDates(monday);
@@ -269,11 +269,29 @@
 
       // Fetch or use provided members list
       let members = allMembers;
-      if (!Array.isArray(members)) {
+      const membersExplicitlyProvided = Array.isArray(allMembers);
+
+      if (!membersExplicitlyProvided) {
         if (typeof window !== 'undefined' && window.StorageManager && typeof window.StorageManager.getMembers === 'function') {
           members = window.StorageManager.getMembers();
         } else {
           members = [];
+        }
+      }
+
+      // Test 17: If members array is explicitly empty or requireMembers is set:
+      // Refuse to generate menu and return reason: 'no_members'
+      if (Array.isArray(members) && members.length === 0) {
+        if (membersExplicitlyProvided || (options && options.requireMembers)) {
+          return {
+            generated: false,
+            reason: 'no_members',
+            error: 'no_members',
+            weekId: weekId,
+            startDate: this.formatDateISO(weekDates[0]),
+            endDate: this.formatDateISO(weekDates[6]),
+            days: []
+          };
         }
       }
 
@@ -382,16 +400,38 @@
           }
         };
 
-        // Determine snapshot attendance for each meal (preserves manual overrides)
+        // Determine snapshot attendance for each meal (preserves manual overrides and historical eaten state)
         const getMealAttendance = (mKey) => {
           const existingAtt = existingMeals?.[mKey]?.attendance || existingDay?.attendance?.[mKey];
+          const isMealEaten = !!(existingMeals?.[mKey]?.isEaten || (mKey === 'dinner' && existingDay?.isEaten));
+
+          // 1. If meal was already eaten in the past:
+          // Strictly preserve historical attendance snapshot (do NOT assign current members to historical eaten meals!)
+          if (isMealEaten) {
+            return {
+              memberIds: Array.isArray(existingAtt?.memberIds) ? [...existingAtt.memberIds] : [],
+              manualOverride: !!existingAtt?.manualOverride,
+              attendanceStatus: existingAtt?.attendanceStatus || (existingAtt?.memberIds?.length > 0 ? 'known' : 'unknown')
+            };
+          }
+
+          // 2. If uneaten meal has a manual override: preserve that override
           if (existingAtt && existingAtt.manualOverride) {
             return {
               memberIds: Array.isArray(existingAtt.memberIds) ? [...existingAtt.memberIds] : [],
-              manualOverride: true
+              manualOverride: true,
+              attendanceStatus: existingAtt.memberIds.length > 0 ? 'known' : 'none'
             };
           }
-          return defaultDayAttendance[mKey];
+
+          // 3. Otherwise (current/future uneaten meal without manual override):
+          // Snapshot attendance from current member schedule template (Section 3: repair legacy future meal)
+          const def = defaultDayAttendance[mKey];
+          return {
+            memberIds: [...def.memberIds],
+            manualOverride: false,
+            attendanceStatus: def.memberIds.length > 0 ? 'known' : 'none'
+          };
         };
 
         const bAttendance = getMealAttendance('breakfast');
@@ -417,15 +457,7 @@
         const existingB = existingMeals?.breakfast;
         const isBEaten = existingB ? !!existingB.isEaten : false;
 
-        if (!hasMealAttendance(bAttendance, 'breakfast')) {
-          // No attendance -> no food generated
-          breakfastMeal = {
-            type: 'single',
-            single: null,
-            attendance: bAttendance,
-            isEaten: false
-          };
-        } else if (isBEaten && existingB?.single) {
+        if (isBEaten && existingB?.single) {
           // Eaten breakfast -> preserve completely
           breakfastMeal = {
             type: 'single',
@@ -434,6 +466,14 @@
             isEaten: true
           };
           prevBreakfastId = existingB.single.id;
+        } else if (!hasMealAttendance(bAttendance, 'breakfast')) {
+          // No attendance in uneaten meal -> clear auto dishes
+          breakfastMeal = {
+            type: 'single',
+            single: null,
+            attendance: bAttendance,
+            isEaten: false
+          };
         } else if (existingB?.single?.manual) {
           // Manual dish in breakfast
           breakfastMeal = {
@@ -470,18 +510,7 @@
         const existingL = existingMeals?.lunch;
         const isLEaten = existingL ? !!existingL.isEaten : false;
 
-        if (!hasMealAttendance(lAttendance, 'lunch')) {
-          // No attendance -> no food
-          lunchMeal = {
-            type: 'family',
-            main: null,
-            vegetable: null,
-            soup: null,
-            side: null,
-            attendance: lAttendance,
-            isEaten: false
-          };
-        } else if (isLEaten && (existingL.main || existingL.vegetable || existingL.soup)) {
+        if (isLEaten && (existingL?.main || existingL?.vegetable || existingL?.soup)) {
           // Eaten lunch -> preserve completely
           lunchMeal = {
             type: 'family',
@@ -495,6 +524,17 @@
           prevLunchMainId = existingL.main?.id || null;
           prevLunchVegId = existingL.vegetable?.id || null;
           prevLunchSoupId = existingL.soup?.id || null;
+        } else if (!hasMealAttendance(lAttendance, 'lunch')) {
+          // No attendance in uneaten lunch -> clear auto dishes
+          lunchMeal = {
+            type: 'family',
+            main: null,
+            vegetable: null,
+            soup: null,
+            side: null,
+            attendance: lAttendance,
+            isEaten: false
+          };
         } else {
           // Generate or preserve manual slots for lunch
           let lMain = null;
@@ -552,18 +592,7 @@
         const existingD = existingMeals?.dinner || existingDay;
         const isDEaten = !!(existingMeals?.dinner?.isEaten || existingDay?.isEaten);
 
-        if (!hasMealAttendance(dAttendance, 'dinner')) {
-          // No attendance -> no food
-          dinnerMeal = {
-            type: 'family',
-            main: null,
-            vegetable: null,
-            soup: null,
-            side: null,
-            attendance: dAttendance,
-            isEaten: false
-          };
-        } else if (isDEaten && (existingD?.main || existingD?.vegetable || existingD?.soup)) {
+        if (isDEaten && (existingD?.main || existingD?.vegetable || existingD?.soup)) {
           // Eaten dinner -> preserve completely
           dinnerMeal = {
             type: 'family',
@@ -577,6 +606,17 @@
           prevDinnerMainId = existingD.main?.id || null;
           prevDinnerVegId = existingD.vegetable?.id || null;
           prevDinnerSoupId = existingD.soup?.id || null;
+        } else if (!hasMealAttendance(dAttendance, 'dinner')) {
+          // No attendance in uneaten dinner -> clear auto dishes
+          dinnerMeal = {
+            type: 'family',
+            main: null,
+            vegetable: null,
+            soup: null,
+            side: null,
+            attendance: dAttendance,
+            isEaten: false
+          };
         } else {
           // Generate or preserve manual slots for dinner
           let dMain = null;

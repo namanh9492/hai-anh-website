@@ -49,6 +49,8 @@
       dinner: 'Tối'
     };
 
+    let hasUnknownLegacyMeals = false;
+
     weekMenu.days.forEach(day => {
       if (!day) return;
       const dayLabel = day.dayLabel || day.date;
@@ -56,19 +58,32 @@
 
       ['breakfast', 'lunch', 'dinner'].forEach(mealKey => {
         let mealObj = null;
-        let mealAttendance = null;
 
         if (meals && meals[mealKey]) {
           mealObj = meals[mealKey];
-          mealAttendance = mealObj.attendance;
         } else if (mealKey === 'dinner') {
           // Fallback to top-level legacy day
           mealObj = day;
-          mealAttendance = day.attendance?.dinner || day.attendance;
         }
 
         if (!mealObj) return;
 
+        // Check semantic meal state (Invariant 4 & 5)
+        const displayState = (window.AppUtils && typeof window.AppUtils.getMealDisplayState === 'function')
+          ? window.AppUtils.getMealDisplayState(mealObj, members)
+          : (mealObj.attendance?.memberIds?.length > 0 ? 'HAS_ATTENDEES' : 'NOT_EATING_AT_HOME');
+
+        if (displayState === 'UNKNOWN_LEGACY_ATTENDANCE') {
+          hasUnknownLegacyMeals = true;
+          return; // Strictly do NOT calculate into shopping list
+        }
+
+        if (displayState !== 'HAS_ATTENDEES') {
+          // NOT_EATING_AT_HOME or NO_MEMBERS_CONFIGURED: strictly ignore!
+          return;
+        }
+
+        const mealAttendance = mealObj.attendance || day.attendance?.[mealKey] || day.attendance;
         const memberIds = Array.isArray(mealAttendance?.memberIds) ? mealAttendance.memberIds.filter(Boolean) : [];
         // Only count meals where at least 1 person is eating
         if (memberIds.length === 0) return;
@@ -174,7 +189,8 @@
       items,
       missingDishes,
       mealsCount: attendingMealsCount,
-      totalItems: items.length
+      totalItems: items.length,
+      hasUnknownLegacyAttendance: hasUnknownLegacyMeals
     };
   }
 
@@ -254,6 +270,7 @@
         this.renderEmptyState('Tuần này chưa có thực đơn.', 'Vui lòng vào trang Thực đơn và bấm "Lên thực đơn tuần" để hệ thống tính danh sách đi chợ.');
         this.updateStats(0, 0, 0);
         this.hideMissingWarning();
+        this.renderLegacyAttendanceWarning(false);
         return;
       }
 
@@ -261,6 +278,7 @@
       this.shoppingData = aggregateWeeklyIngredients(this.weekMenu, this.allDishes, this.allMembers);
 
       this.renderMissingWarnings(this.shoppingData.missingDishes);
+      this.renderLegacyAttendanceWarning(this.shoppingData.hasUnknownLegacyAttendance);
       this.renderShoppingList(weekId, this.shoppingData.items);
       this.updateStatsBar(weekId, this.shoppingData);
     }
@@ -346,6 +364,17 @@
     hideMissingWarning() {
       const banner = document.getElementById('missing-recipe-banner');
       if (banner) banner.style.display = 'none';
+    }
+
+    renderLegacyAttendanceWarning(hasUnknown) {
+      const banner = document.getElementById('legacy-attendance-warning-banner');
+      if (!banner) return;
+      if (hasUnknown) {
+        banner.style.display = 'block';
+        if (window.AppUtils && window.AppUtils.initIcons) window.AppUtils.initIcons();
+      } else {
+        banner.style.display = 'none';
+      }
     }
 
     renderShoppingList(weekId, items) {

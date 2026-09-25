@@ -528,13 +528,20 @@
         if (!meals || typeof meals !== 'object') {
           // Migrate V1 legacy day to 3-meal structure
           // dinner gets legacy dishes, isEaten, and attendance
+          const hasDinnerDishes = !!(day.main || day.vegetable || day.soup);
+          const hasDinnerEaten = !!day.isEaten;
+          const dinnerMemberIds = Array.isArray(oldAttendance.dinner?.memberIds)
+            ? [...oldAttendance.dinner.memberIds]
+            : (Array.isArray(oldAttendance.memberIds) ? [...oldAttendance.memberIds] : []);
+
           meals = {
             breakfast: {
               type: 'single',
               single: null,
               attendance: {
                 memberIds: Array.isArray(oldAttendance.breakfast?.memberIds) ? [...oldAttendance.breakfast.memberIds] : [],
-                manualOverride: !!oldAttendance.breakfast?.manualOverride
+                manualOverride: !!oldAttendance.breakfast?.manualOverride,
+                attendanceStatus: (oldAttendance.breakfast?.memberIds?.length > 0) ? 'known' : 'none'
               },
               isEaten: false
             },
@@ -546,7 +553,8 @@
               side: null,
               attendance: {
                 memberIds: Array.isArray(oldAttendance.lunch?.memberIds) ? [...oldAttendance.lunch.memberIds] : [],
-                manualOverride: !!oldAttendance.lunch?.manualOverride
+                manualOverride: !!oldAttendance.lunch?.manualOverride,
+                attendanceStatus: (oldAttendance.lunch?.memberIds?.length > 0) ? 'known' : 'none'
               },
               isEaten: false
             },
@@ -557,34 +565,36 @@
               soup: day.soup || null,
               side: day.side || null,
               attendance: {
-                memberIds: Array.isArray(oldAttendance.dinner?.memberIds) 
-                  ? [...oldAttendance.dinner.memberIds] 
-                  : (Array.isArray(oldAttendance.memberIds) ? [...oldAttendance.memberIds] : []),
-                manualOverride: !!oldAttendance.dinner?.manualOverride
+                memberIds: dinnerMemberIds,
+                manualOverride: !!oldAttendance.dinner?.manualOverride,
+                attendanceStatus: (dinnerMemberIds.length > 0) ? 'known' : ((hasDinnerDishes && hasDinnerEaten) ? 'unknown' : 'none')
               },
               isEaten: typeof day.isEaten === 'boolean' ? day.isEaten : false
             }
           };
         } else {
-          // Normalize existing meals object
+          // Normalize existing meals object - day.meals is canonical source of truth
           const normAttendance = (mealKey) => {
-            const att = (day.attendance && day.attendance[mealKey] !== undefined)
-              ? day.attendance[mealKey]
-              : meals[mealKey]?.attendance;
+            const att = (meals[mealKey]?.attendance !== undefined)
+              ? meals[mealKey].attendance
+              : day.attendance?.[mealKey];
+            const memberIds = Array.isArray(att?.memberIds) ? att.memberIds.filter(Boolean) : [];
+            const hasDishes = !!(meals[mealKey]?.single || meals[mealKey]?.main || meals[mealKey]?.vegetable || meals[mealKey]?.soup || (mealKey === 'dinner' && (day.main || day.vegetable || day.soup)));
+            const isEaten = !!(meals[mealKey]?.isEaten || (mealKey === 'dinner' && day.isEaten));
+            let status = att?.attendanceStatus;
+            if (!status) {
+              if (memberIds.length > 0) status = 'known';
+              else if (hasDishes && isEaten) status = 'unknown';
+              else status = 'none';
+            }
             return {
-              memberIds: Array.isArray(att?.memberIds) ? att.memberIds.filter(Boolean) : [],
-              manualOverride: typeof att?.manualOverride === 'boolean' ? att.manualOverride : false
+              memberIds: memberIds,
+              manualOverride: typeof att?.manualOverride === 'boolean' ? att.manualOverride : false,
+              attendanceStatus: status
             };
           };
 
-          let isDinnerEaten = false;
-          if (day.isEaten !== undefined && day.isEaten !== meals.dinner?.isEaten) {
-            isDinnerEaten = !!day.isEaten;
-          } else if (typeof meals.dinner?.isEaten === 'boolean') {
-            isDinnerEaten = meals.dinner.isEaten;
-          } else if (typeof day.isEaten === 'boolean') {
-            isDinnerEaten = day.isEaten;
-          }
+          const isDinnerEaten = meals.dinner?.isEaten === true || day.isEaten === true;
 
           meals = {
             breakfast: {
@@ -614,7 +624,7 @@
           };
         }
 
-        // Return day with both 3-meal structure and backward-compatible dinner aliases
+        // Return day with both canonical 3-meal structure and derived backward-compatible dinner aliases
         return {
           ...day,
           meals: meals,

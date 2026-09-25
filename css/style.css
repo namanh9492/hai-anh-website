@@ -2128,6 +2128,51 @@ button, input, select, textarea {
   height: 12px;
 }
 
+.meal-no-members-tag {
+  font-size: 0.74rem;
+  font-style: italic;
+  color: #B45309;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meal-no-members-tag svg, .meal-no-members-tag i {
+  width: 12px;
+  height: 12px;
+  color: #D97706;
+}
+
+.meal-setup-link {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.meal-setup-link:hover {
+  color: var(--primary-dark);
+}
+
+.meal-legacy-att-tag {
+  font-size: 0.74rem;
+  font-style: italic;
+  color: #64748B;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meal-legacy-att-tag svg, .meal-legacy-att-tag i {
+  width: 12px;
+  height: 12px;
+  color: #94A3B8;
+}
+
 .meal-food-body {
   padding: 8px 10px;
   flex: 1;
@@ -2430,6 +2475,14 @@ button, input, select, textarea {
   font-weight: 600;
   padding: 2px 8px;
   border-radius: var(--radius-full);
+}
+
+.legacy-attendance-warning-banner {
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 20px;
 }
 
 .shopping-category-block {
